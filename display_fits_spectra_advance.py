@@ -53,7 +53,14 @@ def main(argv):
     
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
+        
+        print('Trying to analyse spectra on folder ' + os.path.abspath(path) + ' ...')
+        print('')
+        
         for filename in os.listdir(path):
+            if not filename.endswith(".fits"):
+                continue
+            
             hdul = fits.open(path + filename, mode="readonly", memmap = True)
             hdul.info()
             
