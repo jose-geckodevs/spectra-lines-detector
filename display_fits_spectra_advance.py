@@ -5,7 +5,7 @@ from astropy import units as u
 from astropy.wcs import WCS
 from astropy.visualization import quantity_support
 from specutils.spectra import Spectrum1D, SpectralRegion
-from specutils.fitting import fit_generic_continuum
+from specutils.fitting import fit_generic_continuum, fit_continuum
 from specutils.manipulation import noise_region_uncertainty
 from specutils.fitting import find_lines_threshold
 from specutils.fitting import find_lines_derivative
@@ -15,8 +15,14 @@ from specutils.analysis import centroid, fwhm
 import matplotlib.pyplot as plt
 import numpy as np
 import copy, os, sys, getopt, warnings
+from tabulate import tabulate
 
-#path = "V5114Sgr/"
+Halpha = 6563
+Hbeta = 4861
+Hgamma = 4341
+Hdelta = 4102
+WavelenghtLowerLimit = 4000
+WavelenghtUpperLimit = 7000
 
 def limitSpectraArray(low, up, spectrum):
     foundLowerIndex = 0
@@ -64,13 +70,13 @@ def main(argv):
             hdul = fits.open(path + filename, mode="readonly", memmap = True)
             hdul.info()
             
-            # Specutils way
+            # Read the spectrum
             spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
             if debug:
                 print(repr(spec.meta['header']))
             
-            # Limit the spectrum between 4000 and 7000 Angstrom
-            flux, wavelength = limitSpectraArray(4000, 7000, spec)
+            # Limit the spectrum between the lower and upper range
+            flux, wavelength = limitSpectraArray(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
             
             if debug:
                 print(repr(flux))
@@ -82,12 +88,6 @@ def main(argv):
             meta['header']['NAXIS1'] = len(wavelength)
             meta['header']['CRVAL1'] = wavelength.value[0]
             spec = Spectrum1D(spectral_axis=wavelength, flux=flux, meta=meta)
-            
-            #plt.plot(wavelength, flux)
-            #plt.ylim(0, )
-            #plt.xlim(6540, 6580)
-            #plt.xlabel('Wavelength (Angstrom)')
-            #plt.ylabel('Flux (erg/cm2/s/A)')
             
             fig = plt.figure()
             fig.suptitle(filename)
@@ -102,13 +102,10 @@ def main(argv):
             ax7 = fig.add_subplot(gs[3, :])
             
             padding = 50
-            ax1.set_xlim(6563-padding, 6563+padding)
-            ax2.set_xlim(4861-padding, 4861+padding)
-            ax3.set_xlim(4340-padding, 4340+padding)
-            ax4.set_xlim(4101-padding, 4101+padding)
-            #ax5.set_xlim(4000, 7000)
-            #ax6.set_xlim(4000, 7000)
-            #ax7.set_xlim(4000, 7000)
+            ax1.set_xlim(Halpha - padding, Halpha + padding)
+            ax2.set_xlim(Hbeta - padding, Hbeta + padding)
+            ax3.set_xlim(Hgamma - padding, Hgamma + padding)
+            ax4.set_xlim(Hdelta - padding, Hdelta + padding)
             
             ax2.set_ylabel("")
             ax3.set_ylabel("")
@@ -120,8 +117,32 @@ def main(argv):
             ax4.plot(wavelength, flux);
             ax5.plot(wavelength, flux);
             
+            # Try find the continuum without the lines
+            noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
+            spec_noise = noise_region_uncertainty(spec, noise_region)
+            lines = find_lines_threshold(spec_noise, noise_factor=1)
+            regions = []
+            previousLine = 0
+            padding = 50
+            for row in lines:
+                if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit): 
+                    # First line found, add first part of the spectrum
+                    regions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
+                elif (row[0].value - padding > previousLine):
+                    regions.append((previousLine + padding, row[0].value - padding) * u.AA)
+                previousLine = row[0].value
+            # Add last region until end of spectrum
+            if (previousLine + padding < WavelenghtUpperLimit):
+                regions.append((previousLine + padding, WavelenghtUpperLimit) * u.AA)
+            #print(repr(regions))
+            
+            # If no lines found, be sure we add the whole spectrum
+            if (len(regions) <= 0):
+                regions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)
+            
             ax6.set_ylabel("Continuum")
-            g1_fit = fit_generic_continuum(spec)
+            #g1_fit = fit_generic_continuum(spec)
+            g1_fit = fit_continuum(spec, window=regions)
             y_continuum_fitted = g1_fit(wavelength)
             ax6.plot(wavelength, flux);
             ax6.plot(wavelength, y_continuum_fitted);
@@ -130,11 +151,27 @@ def main(argv):
             spec_normalized = spec / y_continuum_fitted
             ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
             
-            # Find lines by thresholding
-            noise_region = SpectralRegion(4000*u.AA, 7000*u.AA) # u.AA for Angstrom
-            spec_noise = noise_region_uncertainty(spec, noise_region)
+            # Find now lines by thresholding using the normalised spectrum
+            noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
+            spec_noise = noise_region_uncertainty(spec_normalized, noise_region)
             lines = find_lines_threshold(spec_noise, noise_factor=1)
-            print(repr(lines))
+            
+            # Try identify Balmer series
+            lines.add_column(name='match', col='          ')
+            for row in lines:
+                if (abs(row[0].value - Halpha) < 10):
+                    row[3] = 'H alpha'
+                elif (abs(row[0].value - Hbeta) < 10):
+                    row[3] = 'H beta'
+                elif (abs(row[0].value - Hgamma) < 10):
+                    row[3] = 'H gamma'
+                elif (abs(row[0].value - Hdelta) < 10):
+                    row[3] = 'H delta'
+                else:
+                    row[3] = ''
+            
+            print(tabulate(lines, headers=['Line center','Type','Index','Match']))
+
             # Find lines by derivating
             #lines = find_lines_derivative(spec, flux_threshold=0.75)
             #print(repr(lines))
