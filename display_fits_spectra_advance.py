@@ -69,11 +69,13 @@ def main(argv):
             
             hdul = fits.open(path + filename, mode="readonly", memmap = True)
             hdul.info()
+            print('')
             
             # Read the spectrum
             spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
             if debug:
                 print(repr(spec.meta['header']))
+                print('')
             
             # Limit the spectrum between the lower and upper range
             flux, wavelength = limitSpectraArray(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
@@ -81,6 +83,7 @@ def main(argv):
             if debug:
                 print(repr(flux))
                 print(repr(wavelength))
+                print('')
             
             # Make a copy of the spectrum object with the new flux and wavelenght arrays
             meta = copy.copy(spec.meta)
@@ -106,6 +109,11 @@ def main(argv):
             ax2.set_xlim(Hbeta - padding, Hbeta + padding)
             ax3.set_xlim(Hgamma - padding, Hgamma + padding)
             ax4.set_xlim(Hdelta - padding, Hdelta + padding)
+            
+            ax1.set_xlabel("Halpha")
+            ax2.set_xlabel("Hbeta")
+            ax3.set_xlabel("Hgamma")
+            ax4.set_xlabel("Hdelta")
             
             ax2.set_ylabel("")
             ax3.set_ylabel("")
@@ -134,7 +142,9 @@ def main(argv):
             # Add last region until end of spectrum
             if (previousLine + padding < WavelenghtUpperLimit):
                 regions.append((previousLine + padding, WavelenghtUpperLimit) * u.AA)
-            #print(repr(regions))
+            print('Continuum regions:')
+            print(tabulate(regions, headers=['Start','End']))
+            print('')
             
             # If no lines found, be sure we add the whole spectrum
             if (len(regions) <= 0):
@@ -170,11 +180,29 @@ def main(argv):
                 else:
                     row[3] = ''
             
+            print('Found lines (noise region uncertainty factor 1):')
             print(tabulate(lines, headers=['Line center','Type','Index','Match']))
+            print('')
 
             # Find lines by derivating
-            #lines = find_lines_derivative(spec, flux_threshold=0.75)
-            #print(repr(lines))
+            lines = find_lines_derivative(spec_normalized, flux_threshold=0.95)
+            
+            # Try identify Balmer series
+            lines.add_column(name='match', col='          ')
+            for row in lines:
+                if (abs(row[0].value - Halpha) < 10):
+                    row[3] = 'H alpha'
+                elif (abs(row[0].value - Hbeta) < 10):
+                    row[3] = 'H beta'
+                elif (abs(row[0].value - Hgamma) < 10):
+                    row[3] = 'H gamma'
+                elif (abs(row[0].value - Hdelta) < 10):
+                    row[3] = 'H delta'
+                else:
+                    row[3] = ''
+                    
+            print('Found lines (derivative threshold 0.95):')
+            print(tabulate(lines, headers=['Line center','Type','Index','Match']))
 
             plt.savefig(path + filename + '.png')
             #plt.show()
