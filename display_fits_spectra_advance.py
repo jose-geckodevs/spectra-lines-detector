@@ -140,6 +140,7 @@ def main(argv):
                 if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit): 
                     # First line found, add first part of the spectrum
                     includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
+                    excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                     # Include first regions
                     fluxContinuumRegions.append(flux[0].value)
                     wavelengthContinuumRegions.append(WavelenghtLowerLimit)
@@ -147,8 +148,10 @@ def main(argv):
                     wavelengthContinuumRegions.append(row[0].value - padding)
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(row[0].value - padding)
-                elif (row[0].value - padding > previousLine and row[0].value + padding < WavelenghtUpperLimit):
+                    
+                elif (previousLine > 0 and row[0].value - padding > previousLine and row[0].value + padding < WavelenghtUpperLimit):
                     includeRegions.append((previousLine + padding, row[0].value - padding) * u.AA)
+                    excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                     # Include regions
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(previousLine + padding)
@@ -158,12 +161,15 @@ def main(argv):
                     wavelengthContinuumRegions.append((row[0].value - padding))
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append((row[0].value - padding))
+                    
                 previousLine = row[0].value
                 
             # Add last region until end of spectrum
             if (previousLine + padding < WavelenghtUpperLimit):
                 includeRegions.append((previousLine + padding, WavelenghtUpperLimit) * u.AA)
                 # Include last region
+                fluxContinuumRegions.append(0)
+                wavelengthContinuumRegions.append(previousLine + padding)
                 fluxContinuumRegions.append(flux[0].value)
                 wavelengthContinuumRegions.append(previousLine + padding)
                 fluxContinuumRegions.append(flux[0].value)
@@ -175,6 +181,10 @@ def main(argv):
                 
             print('Continuum include regions:')
             print(tabulate(includeRegions, headers=['Start','End']))
+            print('')
+            
+            print('Continuum exclude regions:')
+            print(tabulate(excludeRegions, headers=['Start','End']))
             print('')
             
             # Draw the continuum regions for reference
@@ -190,8 +200,10 @@ def main(argv):
                 includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)
             
             ax6.set_ylabel("Continuum")
-            g1_fit = fit_generic_continuum(spec, exclude_regions=[SpectralRegion(6500 * u.AA, 6600 * u.AA)])
+            #g1_fit = fit_generic_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
             #g1_fit = fit_continuum(spec, window=includeRegions)
+            g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
+            #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
             y_continuum_fitted = g1_fit(wavelength)
             ax6.plot(wavelength, flux);
             ax6.plot(wavelength, y_continuum_fitted);
