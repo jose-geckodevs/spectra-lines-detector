@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import copy, os, sys, getopt, warnings
 from tabulate import tabulate
+from datetime import datetime
 
 Halpha = 6563
 Hbeta = 4861
@@ -35,6 +36,12 @@ def limitSpectraArray(low, up, spectrum):
             foundUpperIndex = index
             break;
     return spectrum.flux.value[foundLowerIndex:foundUpperIndex] * spectrum.flux.unit, spectrum.wavelength.value[foundLowerIndex:foundUpperIndex] * spectrum.wavelength.unit
+
+def reduceSortedFITSArrayByFilename(item):
+    return item[0]
+
+def reduceSortedFITSArrayByDate(item):
+    return item[1]
 
 def main(argv):
     quantity_support() 
@@ -66,27 +73,46 @@ def main(argv):
         evolutionPlane = []
         count = 0
         
-        # Sort files alphabetically to try get them in chronological order
-        files = os.listdir(path)
-        sorted(files)
+        startTime = datetime.now()
+        print('Start running at ' + startTime.strftime("%H:%M:%S"))
+
+        # Sort FITs by date in header
+        listFITS = []
+        for filename in os.listdir(path):
+            if not filename.endswith(".fits"):
+                continue
+            spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
+            listFITS.append([filename, spec.meta['header']['DATE-OBS']])
         
-        for filename in files:
+        sortedFITS = list(map(reduceSortedFITSArrayByFilename, sorted(listFITS)))
+        sortedFDates = list(map(reduceSortedFITSArrayByDate, sorted(listFITS)))
+
+        for filename in sortedFITS:
             if not filename.endswith(".fits"):
                 continue
             
             report = open(path + filename + '.txt', 'w')
             
+            report.write('Filename: ' + filename + '\n')
+
+            # Read FITS
             hdul = fits.open(path + filename, mode="readonly", memmap = True)
-            report.write('Filename: ' + hdul.filename() + '\n')
-            report.write(tabulate(hdul.info(False)) + '\n')
-            report.write('\n')
+            if debug:
+                report.write(tabulate(hdul.info(False)) + '\n')
+                report.write('\n')
             
             # Read the spectrum
             spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
             if debug:
                 report.write(repr(spec.meta['header']) + '\n')
                 report.write('\n')
-            
+
+            report.write('Date observation: ' + spec.meta['header']['DATE-OBS'] + '\n')
+            report.write('Exposure time: ' + str(spec.meta['header']['EXPTIME']) + '\n')
+            report.write('Telescope: ' + spec.meta['header']['TELESCOP'] + '\n')
+            report.write('Instrument: ' + spec.meta['header']['INSTRUME'] + '\n')
+            report.write('Object: ' + spec.meta['header']['OBJECT'] + '\n')
+
             # Limit the spectrum between the lower and upper range
             flux, wavelength = limitSpectraArray(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
             
@@ -410,23 +436,30 @@ def main(argv):
             Halpha_Hbeta.append(fluxData[0] / fluxData[1])
             Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
             Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
+            evolutionPlane.append(sortedFDates[count])
             count += 1
-            evolutionPlane.append(count)
             
             # Plot figure
             plt.savefig(path + filename + '.png')
             plt.clf()
             hdul.close()
             
+            print('Completed ' + filename + ' at ' + datetime.now().strftime("%H:%M:%S"))
             #break # Just a test to only process the first spectrum of the folder
             
         fig, ax = plt.subplots()
         ax.plot(evolutionPlane, Halpha_Hbeta, label = 'Halpha/Hbeta')
         ax.plot(evolutionPlane, Hgamma_Hbeta, label = 'Hgamma/Hbeta')
         ax.plot(evolutionPlane, Hdelta_Hbeta, label = 'Hdelta/Hbeta')
-        ax.set(xlabel = 'Time', ylabel = 'Flux Hbeta factor')
-        plt.savefig(path + 'linesevolution.png')
+        ax.set(xlabel = 'Date', ylabel = 'Flux Hbeta factor')
+        fig.autofmt_xdate()
+        plt.legend()
+        plt.savefig(path + 'lines-evolution.png')
         plt.clf()
+
+        endTime = datetime.now()
+        print('Completed at ' + datetime.now().strftime("%H:%M:%S"))
+        print('The execution took ' + str(round((endTime - startTime).total_seconds(),0)) + ' seconds')
         
 if __name__ == "__main__":
    main(sys.argv[1:])
