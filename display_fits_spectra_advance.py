@@ -11,7 +11,7 @@ from specutils.fitting import find_lines_threshold
 from specutils.fitting import find_lines_derivative
 from specutils.fitting import estimate_line_parameters
 from specutils.manipulation import extract_region
-from specutils.analysis import centroid, fwhm
+from specutils.analysis import centroid, fwhm, line_flux, equivalent_width
 import matplotlib.pyplot as plt
 import numpy as np
 import copy, os, sys, getopt, warnings
@@ -60,31 +60,41 @@ def main(argv):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         
-        print('Trying to analyse spectra on folder ' + os.path.abspath(path) + ' ...')
-        print('')
+        Halpha_Hbeta = []
+        Hgamma_Hbeta = []
+        Hdelta_Hbeta = []
+        evolutionPlane = []
+        count = 0
         
-        for filename in os.listdir(path):
+        # Sort files alphabetically to try get them in chronological order
+        files = os.listdir(path)
+        sorted(files)
+        
+        for filename in files:
             if not filename.endswith(".fits"):
                 continue
             
+            report = open(path + filename + '.txt', 'w')
+            
             hdul = fits.open(path + filename, mode="readonly", memmap = True)
-            hdul.info()
-            print('')
+            report.write('Filename: ' + hdul.filename() + '\n')
+            report.write(tabulate(hdul.info(False)) + '\n')
+            report.write('\n')
             
             # Read the spectrum
             spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
             if debug:
-                print(repr(spec.meta['header']))
-                print('')
+                report.write(repr(spec.meta['header']) + '\n')
+                report.write('\n')
             
             # Limit the spectrum between the lower and upper range
             flux, wavelength = limitSpectraArray(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
             
             if debug:
-                print('Flux and wavelength spectra:')
-                print(repr(flux))
-                print(repr(wavelength))
-                print('')
+                report.write('Flux and wavelength spectra:' + '\n')
+                report.write(repr(flux) + '\n')
+                report.write(repr(wavelength) + '\n')
+                report.write('\n')
             
             # Make a copy of the spectrum object with the new flux and wavelenght arrays
             meta = copy.copy(spec.meta)
@@ -103,27 +113,9 @@ def main(argv):
             ax4 = fig.add_subplot(gs[0, 3])
             ax5 = fig.add_subplot(gs[1, :])
             ax6 = fig.add_subplot(gs[2, :])
-            ax7 = fig.add_subplot(gs[3, :])
+            ax7 = fig.add_subplot(gs[3, :])        
             
-            padding = 50
-            ax1.set_xlim(Halpha - padding, Halpha + padding)
-            ax2.set_xlim(Hbeta - padding, Hbeta + padding)
-            ax3.set_xlim(Hgamma - padding, Hgamma + padding)
-            ax4.set_xlim(Hdelta - padding, Hdelta + padding)
-            
-            ax1.set_xlabel("Halpha")
-            ax2.set_xlabel("Hbeta")
-            ax3.set_xlabel("Hgamma")
-            ax4.set_xlabel("Hdelta")
-            
-            ax2.set_ylabel("")
-            ax3.set_ylabel("")
-            ax4.set_ylabel("")
-            
-            ax1.plot(wavelength, flux)
-            ax2.plot(wavelength, flux)
-            ax3.plot(wavelength, flux)
-            ax4.plot(wavelength, flux)
+            # Plot initial spectrum
             ax5.plot(wavelength, flux)
             
             # Try find the continuum without the lines
@@ -133,9 +125,24 @@ def main(argv):
             numLinesFirstIteration = len(lines)
             
             if debug:
-                print('Initial lines found (noise region uncertainty factor 1):')
-                print(tabulate(lines, headers=['Line center','Type','Index','Match']))
-                print('')
+                # Try identify Balmer series
+                lines.add_column(name='match', col='          ')
+                for row in lines:
+                    if (abs(row[0].value - Halpha) < 10):
+                        row[3] = 'H alpha'
+                    elif (abs(row[0].value - Hbeta) < 10):
+                        row[3] = 'H beta'
+                    elif (abs(row[0].value - Hgamma) < 10):
+                        row[3] = 'H gamma'
+                    elif (abs(row[0].value - Hdelta) < 10):
+                        row[3] = 'H delta'
+                    else:
+                        row[3] = ''
+                
+                if debug:
+                    report.write('Initial lines found (noise region uncertainty factor 1):' + '\n')
+                    report.write(tabulate(lines, headers=['Line center','Type','Index']) + '\n')
+                    report.write('\n')
             
             includeRegions = []
             excludeRegions = []
@@ -186,20 +193,21 @@ def main(argv):
                 fluxContinuumRegions.append(0)
                 wavelengthContinuumRegions.append(WavelenghtUpperLimit)
                 
-            print('Continuum include regions:')
-            print(tabulate(includeRegions, headers=['Start','End']))
-            print('')
-            
-            print('Continuum exclude regions:')
-            print(tabulate(excludeRegions, headers=['Start','End']))
-            print('')
+            if debug:
+                report.write('Continuum include regions:' + '\n')
+                report.write(tabulate(includeRegions, headers=['Start','End']) + '\n')
+                report.write('\n')
+                
+                report.write('Continuum exclude regions:' + '\n')
+                report.write(tabulate(excludeRegions, headers=['Start','End']) + '\n')
+                report.write('\n')
             
             # Draw the continuum regions for reference
             if debug:
-                print('Continuum regions:')
-                print(repr(fluxContinuumRegions))
-                print(repr(wavelengthContinuumRegions))
-                print('')
+                report.write('Continuum regions:' + '\n')
+                report.write(repr(fluxContinuumRegions) + '\n')
+                report.write(repr(wavelengthContinuumRegions) + '\n')
+                report.write('\n')
             ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions);
             
             # If no lines found, be sure we add the whole spectrum
@@ -226,9 +234,9 @@ def main(argv):
             numLinesSecondIteration = len(lines)
             
             # Try fit continuum again with new lines found
-            print('Num. lines first iteration:', numLinesFirstIteration)
-            print('Num. lines second iteration:', numLinesSecondIteration)
-            print()
+            report.write('Num. lines first iteration: ' + str(numLinesFirstIteration) + '\n')
+            report.write('Num. lines second iteration: ' + str(numLinesSecondIteration) + '\n')
+            report.write('\n')
             if (numLinesFirstIteration != numLinesSecondIteration):
                 includeRegions = []
                 excludeRegions = []
@@ -238,7 +246,6 @@ def main(argv):
                 padding = 25
                 for row in lines:
                     if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
-                        print('First line')
                         # First line found, add first part of the spectrum
                         includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
                         excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
@@ -252,7 +259,6 @@ def main(argv):
                         previousLine = row[0].value
                         
                     elif (previousLine > 0 and row[0].value - padding > previousLine and row[0].value + padding < WavelenghtUpperLimit):
-                        print('Lines')
                         includeRegions.append((previousLine + padding, row[0].value - padding) * u.AA)
                         excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                         # Include regions
@@ -280,14 +286,15 @@ def main(argv):
                     # Include last region
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(WavelenghtUpperLimit)
-                    
-                print('New continuum include regions:')
-                print(tabulate(includeRegions, headers=['Start','End']))
-                print('')
                 
-                print('New continuum exclude regions:')
-                print(tabulate(excludeRegions, headers=['Start','End']))
-                print('')
+                if debug:
+                    report.write('New continuum include regions:' + '\n')
+                    report.write(tabulate(includeRegions, headers=['Start','End']) + '\n')
+                    report.write('\n')
+                    
+                    report.write('New continuum exclude regions:' + '\n')
+                    report.write(tabulate(excludeRegions, headers=['Start','End']) + '\n')
+                    report.write('\n')
                     
                 # Draw the continuum regions for reference
                 ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions);
@@ -327,9 +334,36 @@ def main(argv):
                 else:
                     row[3] = ''
             
-            print('Found lines (noise region uncertainty factor 1):')
-            print(tabulate(lines, headers=['Line center','Type','Index','Match']))
-            print('')
+            # Plot individual H lines
+            ax1.clear()
+            ax2.clear()
+            ax3.clear()
+            ax4.clear()
+            
+            padding = 50
+            ax1.set_xlim(Halpha - padding, Halpha + padding)
+            ax2.set_xlim(Hbeta - padding, Hbeta + padding)
+            ax3.set_xlim(Hgamma - padding, Hgamma + padding)
+            ax4.set_xlim(Hdelta - padding, Hdelta + padding)
+            
+            ax1.set_xlabel("Halpha")
+            ax2.set_xlabel("Hbeta")
+            ax3.set_xlabel("Hgamma")
+            ax4.set_xlabel("Hdelta")
+            
+            ax2.set_ylabel("")
+            ax3.set_ylabel("")
+            ax4.set_ylabel("")
+            
+            ax1.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+            ax2.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+            ax3.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+            ax4.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+            
+            if debug:
+                report.write('Found lines (noise region uncertainty factor 1):' + '\n')
+                report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
+                report.write('\n')
 
             # Find lines by derivating
             lines = find_lines_derivative(spec_normalized, flux_threshold=0.95)
@@ -348,18 +382,54 @@ def main(argv):
                 else:
                     row[3] = ''
                     
-            print('Found lines (derivative threshold 0.95):')
-            print(tabulate(lines, headers=['Line center','Type','Index','Match']))
-
+            if debug:
+                report.write('Found lines (derivative threshold 0.95):' + '\n')
+                report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
+                report.write('\n')
+            
+            # Measure lines
+            padding = 50
+            regions = [SpectralRegion((Halpha - padding) * u.AA, (Halpha + padding) * u.AA ), SpectralRegion((Hbeta - padding) * u.AA, (Hbeta + padding) * u.AA ), SpectralRegion((Hgamma - padding) * u.AA, (Hgamma + padding) * u.AA ), SpectralRegion((Hdelta - padding) * u.AA, (Hdelta + padding) * u.AA )]
+            fluxData = line_flux(spec, regions = regions)
+            fwhmData = fwhm(spec, regions = regions)
+            equivalentWidthData = equivalent_width(spec, continuum=1, regions = regions)
+            centroidData = centroid(spec, regions = regions)
+            
+            haValues = np.array(['Halpha', fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
+            hbValues = np.array(['Hbetaa', fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
+            hgValues = np.array(['Hgamma', fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
+            hdValues = np.array(['Hdelta', fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
+            
+            lines = np.array([haValues, hbValues, hgValues, hdValues])
+            report.write('Lines analisys' + '\n')
+            report.write(tabulate(lines, headers=['Line','Flux','FWHM', 'Equivalent width', 'Centroid']) + '\n')
+            report.write('* Units: ' + str(fluxData[0].unit))
+            report.write('\n')
+            
+            # Calculate lines evolution
+            Halpha_Hbeta.append(fluxData[0] / fluxData[1])
+            Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
+            Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
+            count += 1
+            evolutionPlane.append(count)
+            print(Halpha_Hbeta)
+            print(evolutionPlane)
+            
+            # Plot figure
             plt.savefig(path + filename + '.png')
-            #plt.show()
-
             plt.clf()
             hdul.close()
             
-            print('')
             #break # Just a test to only process the first spectrum of the folder
             
+        fig, ax = plt.subplots()
+        ax.plot(evolutionPlane, Halpha_Hbeta, label = 'Halpha/Hbeta')
+        ax.plot(evolutionPlane, Hgamma_Hbeta, label = 'Hgamma/Hbeta')
+        ax.plot(evolutionPlane, Hdelta_Hbeta, label = 'Hdelta/Hbeta')
+        ax.set(xlabel = 'Time', ylabel = 'Flux Hbeta factor')
+        plt.savefig(path + 'linesevolution.png')
+        plt.clf()
+        
 if __name__ == "__main__":
    main(sys.argv[1:])
    
