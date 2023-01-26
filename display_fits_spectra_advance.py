@@ -412,8 +412,6 @@ def main(argv):
             Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
             count += 1
             evolutionPlane.append(count)
-            print(Halpha_Hbeta)
-            print(evolutionPlane)
             
             # Plot figure
             plt.savefig(path + filename + '.png')
