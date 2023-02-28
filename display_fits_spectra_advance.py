@@ -179,7 +179,7 @@ def main(argv):
             for row in lines:
                 if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
                     # First line found, add first part of the spectrum
-                    includeRegions.append((WavelenghtLowerLimit, row[0].value - g) * u.AA)
+                    includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
                     excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                     # Include first regions
                     fluxContinuumRegions.append(flux[0].value)
