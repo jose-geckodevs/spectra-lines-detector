@@ -179,7 +179,7 @@ def main(argv):
             for row in lines:
                 if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
                     # First line found, add first part of the spectrum
-                    includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
+                    includeRegions.append((WavelenghtLowerLimit, row[0].value - g) * u.AA)
                     excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                     # Include first regions
                     fluxContinuumRegions.append(flux[0].value)
@@ -416,13 +416,13 @@ def main(argv):
             # Measure lines
             padding = 50
             regions = [SpectralRegion((Halpha - padding) * u.AA, (Halpha + padding) * u.AA ), SpectralRegion((Hbeta - padding) * u.AA, (Hbeta + padding) * u.AA ), SpectralRegion((Hgamma - padding) * u.AA, (Hgamma + padding) * u.AA ), SpectralRegion((Hdelta - padding) * u.AA, (Hdelta + padding) * u.AA )]
-            fluxData = line_flux(spec, regions = regions)
-            fwhmData = fwhm(spec, regions = regions)
-            equivalentWidthData = equivalent_width(spec, continuum=1, regions = regions)
-            centroidData = centroid(spec, regions = regions)
+            fluxData = line_flux(spec_normalized, regions = regions)
+            fwhmData = fwhm(spec_normalized, regions = regions)
+            equivalentWidthData = equivalent_width(spec_normalized, continuum=1, regions = regions)
+            centroidData = centroid(spec_normalized, regions = regions)
             
             haValues = np.array(['Halpha', fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
-            hbValues = np.array(['Hbetaa', fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
+            hbValues = np.array(['Hbeta', fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
             hgValues = np.array(['Hgamma', fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
             hdValues = np.array(['Hdelta', fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
             
