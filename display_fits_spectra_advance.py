@@ -25,23 +25,51 @@ Hdelta = 4102
 WavelenghtLowerLimit = 4000
 WavelenghtUpperLimit = 7000
 
-def limitSpectraArray(low, up, spectrum):
+def limitSpectraArray(low: int, up: int, spectrum: Spectrum1D):
     foundLowerIndex = 0
     foundUpperIndex = 0
     for index, wavelength in enumerate(spectrum.wavelength):
-        #print(index, wavelength.value, foundLowerIndex, foundUpperIndex);
         if wavelength.value >= low and spectrum.flux.value[index] != 0 and not foundLowerIndex:
             foundLowerIndex = index
         if wavelength.value >= up and not foundUpperIndex:
             foundUpperIndex = index
-            break;
+            break
     return spectrum.flux.value[foundLowerIndex:foundUpperIndex] * spectrum.flux.unit, spectrum.wavelength.value[foundLowerIndex:foundUpperIndex] * spectrum.wavelength.unit
 
-def reduceSortedFITSArrayByFilename(item):
+def reduceSortedFITSArrayByFilename(item: list):
     return item[0]
 
-def reduceSortedFITSArrayByDate(item):
+def reduceSortedFITSArrayByDate(item: list):
     return item[1]
+
+def measureLinesFixed(_spec_norm: Spectrum1D):
+    padding = 50
+    regions = [SpectralRegion((Halpha - padding) * u.AA, (Halpha + padding) * u.AA ), SpectralRegion((Hbeta - padding) * u.AA, (Hbeta + padding) * u.AA ), SpectralRegion((Hgamma - padding) * u.AA, (Hgamma + padding) * u.AA ), SpectralRegion((Hdelta - padding) * u.AA, (Hdelta + padding) * u.AA )]
+    _fluxData = line_flux(_spec_norm, regions = regions)
+    _fwhmData = fwhm(_spec_norm, regions = regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = regions)
+    _centroidData = centroid(_spec_norm, regions = regions)
+
+    return _fluxData, _fwhmData, _equivalentWidthData, _centroidData
+
+def measureLineMaxFwhm(center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+    padding = 5
+    precision = 2
+    previousFwhm = u.Quantity(0)
+    regions = []
+    while(padding < 100):
+        regions = [SpectralRegion((center - padding) * u.AA, (center + padding) * u.AA )]
+        fwhmData = fwhm(_spec_norm, regions = regions)
+        if (round(fwhmData[0].value, precision) <= round(previousFwhm.value, precision)):
+            break
+        previousFwhm = fwhmData[0]
+        padding += 5
+
+    _fluxData = line_flux(_spec_flux, regions = regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = regions)
+    _centroidData = centroid(_spec_norm, regions = regions)
+
+    return _fluxData[0], previousFwhm, _equivalentWidthData[0], _centroidData[0]
 
 def main(argv):
     quantity_support() 
@@ -251,6 +279,7 @@ def main(argv):
             
             ax7.set_ylabel("Normalised")
             spec_normalized = spec / y_continuum_fitted
+            spec_flux = spec - y_continuum_fitted
             ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
             
             # Find now lines by thresholding using the normalised spectrum
@@ -413,14 +442,19 @@ def main(argv):
                 report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
             
-            # Measure lines
-            padding = 50
-            regions = [SpectralRegion((Halpha - padding) * u.AA, (Halpha + padding) * u.AA ), SpectralRegion((Hbeta - padding) * u.AA, (Hbeta + padding) * u.AA ), SpectralRegion((Hgamma - padding) * u.AA, (Hgamma + padding) * u.AA ), SpectralRegion((Hdelta - padding) * u.AA, (Hdelta + padding) * u.AA )]
-            fluxData = line_flux(spec_normalized, regions = regions)
-            fwhmData = fwhm(spec_normalized, regions = regions)
-            equivalentWidthData = equivalent_width(spec_normalized, continuum=1, regions = regions)
-            centroidData = centroid(spec_normalized, regions = regions)
-            
+            # Measure lines fixed padding
+            #fluxData, fwhmData, equivalentWidthData, centroidData = measureLinesFixed(spec_normalized)
+
+            # Measure lines finding paddign from amx fwhm
+            haCalculations = measureLineMaxFwhm(Halpha, spec_normalized, spec_flux)
+            hbCalculations = measureLineMaxFwhm(Hbeta, spec_normalized, spec_flux)
+            hgCalculations = measureLineMaxFwhm(Hgamma, spec_normalized, spec_flux)
+            hdCalculations = measureLineMaxFwhm(Hdelta, spec_normalized, spec_flux)
+            fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
+            fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
+            equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
+            centroidData = [haCalculations[3], hbCalculations[3], hgCalculations[3], hdCalculations[3]]
+
             haValues = np.array(['Halpha', fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
             hbValues = np.array(['Hbeta', fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
             hgValues = np.array(['Hgamma', fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
