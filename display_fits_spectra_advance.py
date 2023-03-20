@@ -20,9 +20,13 @@ from tabulate import tabulate
 from datetime import datetime
 
 Halpha = 6563
+HalphaLabel = 'Halpha'
 Hbeta = 4861
+HbetaLabel = 'Hbeta'
 Hgamma = 4341
+HgammaLabel = 'Hgamma'
 Hdelta = 4102
+HdeltaLabel = 'Hdelta'
 WavelenghtLowerLimit = 4000
 WavelenghtUpperLimit = 7000
 Ebv = -0.6
@@ -81,7 +85,7 @@ def main(argv):
     debug = False
     
     try:
-        opts, args = getopt.getopt(argv,"hp:d:",["path=","debug"])
+        opts, args = getopt.getopt(argv,'hp:d:',['path=','debug'])
     except getopt.GetoptError:
         print('display_fits_spectra_advance.py -p <include path for spectra> -d <debug mode true or false>')
         sys.exit(2)
@@ -89,9 +93,9 @@ def main(argv):
         if opt == '-h':
             print('display_fits_spectra_advance.py -p <include path for spectra> -d <debug mode true or false>')
             sys.exit()
-        elif opt in ("-p", "--path"):
+        elif opt in ('-p', '--path'):
             path = arg + '/'
-        elif opt in ("-d", "--debug"):
+        elif opt in ('-d', '--debug'):
             debug = arg == 'true'
     
     with warnings.catch_warnings():
@@ -104,12 +108,12 @@ def main(argv):
         count = 0
         
         startTime = datetime.now()
-        print('Start running at ' + startTime.strftime("%H:%M:%S"))
+        print('Start running at ' + startTime.strftime('%H:%M:%S'))
 
         # Sort FITs by date in header
         listFITS = []
         for filename in os.listdir(path):
-            if not filename.endswith(".fits"):
+            if not filename.endswith('.fits'):
                 continue
             spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
             listFITS.append([filename, spec.meta['header']['DATE-OBS']])
@@ -118,7 +122,7 @@ def main(argv):
         sortedFDates = list(map(reduceSortedFITSArrayByDate, sorted(listFITS)))
 
         for filename in sortedFITS:
-            if not filename.endswith(".fits"):
+            if not filename.endswith('.fits'):
                 continue
             
             report = open(path + filename + '.txt', 'w')
@@ -126,7 +130,7 @@ def main(argv):
             report.write('Filename: ' + filename + '\n')
 
             # Read FITS
-            hdul = fits.open(path + filename, mode="readonly", memmap = True)
+            hdul = fits.open(path + filename, mode='readonly', memmap = True)
             if debug:
                 report.write(tabulate(hdul.info(False)) + '\n')
                 report.write('\n')
@@ -192,13 +196,13 @@ def main(argv):
                 lines.add_column(name='match', col='          ')
                 for row in lines:
                     if (abs(row[0].value - Halpha) < 10):
-                        row[3] = 'H alpha'
+                        row[3] = HalphaLabel
                     elif (abs(row[0].value - Hbeta) < 10):
-                        row[3] = 'H beta'
+                        row[3] = HbetaLabel
                     elif (abs(row[0].value - Hgamma) < 10):
-                        row[3] = 'H gamma'
+                        row[3] = HgammaLabel
                     elif (abs(row[0].value - Hdelta) < 10):
-                        row[3] = 'H delta'
+                        row[3] = HdeltaLabel
                     else:
                         row[3] = ''
                 
@@ -277,7 +281,7 @@ def main(argv):
             if (len(includeRegions) <= 0):
                 includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
                 
-            ax6.set_ylabel("Continuum")
+            ax6.set_ylabel('Continuum')
             #g1_fit = fit_generic_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
             #g1_fit = fit_continuum(spec, window=includeRegions)
             g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
@@ -286,7 +290,7 @@ def main(argv):
             ax6.plot(wavelength, flux);
             ax6.plot(wavelength, y_continuum_fitted);
             
-            ax7.set_ylabel("Normalised")
+            ax7.set_ylabel('Normalised')
             spec_normalized = spec / y_continuum_fitted
             spec_flux = spec - y_continuum_fitted
             ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
@@ -377,7 +381,7 @@ def main(argv):
                 spec_normalized = spec / y_continuum_fitted
                 spec_flux = spec - y_continuum_fitted
                 ax7.clear()
-                ax7.set_ylabel("Normalised")
+                ax7.set_ylabel('Normalised')
                 ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
                 
                 # Find now lines by thresholding using the normalised spectrum
@@ -389,13 +393,13 @@ def main(argv):
             lines.add_column(name='match', col='          ')
             for row in lines:
                 if (abs(row[0].value - Halpha) < 10):
-                    row[3] = 'H alpha'
+                    row[3] = HalphaLabel
                 elif (abs(row[0].value - Hbeta) < 10):
-                    row[3] = 'H beta'
+                    row[3] = HbetaLabel
                 elif (abs(row[0].value - Hgamma) < 10):
-                    row[3] = 'H gamma'
+                    row[3] = HgammaLabel
                 elif (abs(row[0].value - Hdelta) < 10):
-                    row[3] = 'H delta'
+                    row[3] = HdeltaLabel
                 else:
                     row[3] = ''
             
@@ -411,14 +415,14 @@ def main(argv):
             ax3.set_xlim(Hgamma - padding, Hgamma + padding)
             ax4.set_xlim(Hdelta - padding, Hdelta + padding)
             
-            ax1.set_xlabel("Halpha")
-            ax2.set_xlabel("Hbeta")
-            ax3.set_xlabel("Hgamma")
-            ax4.set_xlabel("Hdelta")
+            ax1.set_xlabel(HalphaLabel)
+            ax2.set_xlabel(HbetaLabel)
+            ax3.set_xlabel(HgammaLabel)
+            ax4.set_xlabel(HdeltaLabel)
             
-            ax2.set_ylabel("")
-            ax3.set_ylabel("")
-            ax4.set_ylabel("")
+            ax2.set_ylabel('')
+            ax3.set_ylabel('')
+            ax4.set_ylabel('')
             
             ax1.plot(spec_normalized.spectral_axis, spec_normalized.flux)
             ax2.plot(spec_normalized.spectral_axis, spec_normalized.flux)
@@ -437,13 +441,13 @@ def main(argv):
             lines.add_column(name='match', col='          ')
             for row in lines:
                 if (abs(row[0].value - Halpha) < 10):
-                    row[3] = 'H alpha'
+                    row[3] = HalphaLabel
                 elif (abs(row[0].value - Hbeta) < 10):
-                    row[3] = 'H beta'
+                    row[3] = HbetaLabel
                 elif (abs(row[0].value - Hgamma) < 10):
-                    row[3] = 'H gamma'
+                    row[3] = HgammaLabel
                 elif (abs(row[0].value - Hdelta) < 10):
-                    row[3] = 'H delta'
+                    row[3] = HdeltaLabel
                 else:
                     row[3] = ''
                     
@@ -485,7 +489,7 @@ def main(argv):
             plt.clf()
             hdul.close()
             
-            print('Completed ' + filename + ' at ' + datetime.now().strftime("%H:%M:%S"))
+            print('Completed ' + filename + ' at ' + datetime.now().strftime('%H:%M:%S'))
             break # Just a test to only process the first spectrum of the folder
             
         fig, ax = plt.subplots()
@@ -499,8 +503,8 @@ def main(argv):
         plt.clf()
 
         endTime = datetime.now()
-        print('Completed at ' + datetime.now().strftime("%H:%M:%S"))
+        print('Completed at ' + datetime.now().strftime('%H:%M:%S'))
         print('The execution took ' + str(round((endTime - startTime).total_seconds(),0)) + ' seconds')
         
-if __name__ == "__main__":
+if __name__ == '__main__':
    main(sys.argv[1:])
