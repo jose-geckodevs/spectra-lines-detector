@@ -19,19 +19,7 @@ import copy, os, sys, getopt, warnings
 from tabulate import tabulate
 from datetime import datetime
 
-Halpha = 6563
-HalphaLabel = 'Halpha'
-Hbeta = 4861
-HbetaLabel = 'Hbeta'
-Hgamma = 4341
-HgammaLabel = 'Hgamma'
-Hdelta = 4102
-HdeltaLabel = 'Hdelta'
-WavelenghtLowerLimit = 4000
-WavelenghtUpperLimit = 7000
-Ebv = -0.6
-
-def limitSpectraArray(_low: int, _up: int, _spectrum: Spectrum1D):
+def limit_spectra_array(_low: int, _up: int, _spectrum: Spectrum1D):
     _foundLowerIndex = 0
     _foundUpperIndex = 0
     for index, wavelength in enumerate(_spectrum.wavelength):
@@ -42,13 +30,13 @@ def limitSpectraArray(_low: int, _up: int, _spectrum: Spectrum1D):
             break
     return _spectrum.flux.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.flux.unit, _spectrum.wavelength.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.wavelength.unit
 
-def reduceSortedFITSArrayByFilename(item: list):
+def reduce_sorted_fits_array_by_filename(item: list):
     return item[0]
 
-def reduceSortedFITSArrayByDate(item: list):
+def reduce_sorted_fits_array_by_date(item: list):
     return item[1]
 
-def measureLinesFixed(_center: float, _spec_norm: Spectrum1D):
+def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D):
     _padding = 50
     _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
     _fluxData = line_flux(_spec_norm, regions = _regions)
@@ -58,24 +46,33 @@ def measureLinesFixed(_center: float, _spec_norm: Spectrum1D):
 
     return _fluxData, _fwhmData, _equivalentWidthData, _centroidData
 
-def measureLineMaxFwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
     _padding = 5
     _precision = 2
     _previousFwhm = u.Quantity(0)
     _regions = []
-    while(padding < 100):
+    while(_padding < 100):
         _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
-        fwhmData = fwhm(_spec_norm, regions = _regions)
-        if (round(fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
+        _fwhmData = fwhm(_spec_norm, regions = _regions)
+        if (round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
-        _previousFwhm = fwhmData[0]
-        padding += 5
+        _previousFwhm = _fwhmData[0]
+        _padding += 5
 
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
     _centroidData = centroid(_spec_norm, regions = _regions)
 
     return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0]
+
+def print_help():
+    print('display_fits_spectra_advance.py')
+    print('         --debug <debug mode>''')
+    print('         --path <include path for spectra> --ebv <dust extintion value>')
+    print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
+    print('         --wavelenghtLowerLimit <lower angstrom limit> --wavelenghtUpperLimit <higher angstrom limit>')
+    print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
+    print('If no lines configured, Halpha(4), Hbeta(3), Hgamma(2) and Hdelta(1) will be used')
 
 def main(argv):
     quantity_support() 
@@ -84,19 +81,56 @@ def main(argv):
     path = './'
     debug = False
     
+    Halpha = 6563
+    HalphaLabel = 'Halpha'
+    Hbeta = 4861
+    HbetaLabel = 'Hbeta'
+    Hgamma = 4341
+    HgammaLabel = 'Hgamma'
+    Hdelta = 4102
+    HdeltaLabel = 'Hdelta'
+    WavelenghtLowerLimit = 4000
+    WavelenghtUpperLimit = 7000
+    Ebv = 0
+
     try:
-        opts, args = getopt.getopt(argv,'hp:d:',['path=','debug'])
+        opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','ebv=',
+                                                'wavelenghtLowerLimit','wavelenghtUpperLimit'
+                                                'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
+                                                'l1label=','l2label=','l3label=','l4label='])
     except getopt.GetoptError:
-        print('display_fits_spectra_advance.py -p <include path for spectra> -d <debug mode true or false>')
+        print_help()
         sys.exit(2)
     for opt, arg in opts:
-        if opt == '-h':
-            print('display_fits_spectra_advance.py -p <include path for spectra> -d <debug mode true or false>')
+        if opt in ('-h', '--help'):
+            print_help()
             sys.exit()
         elif opt in ('-p', '--path'):
             path = arg + '/'
         elif opt in ('-d', '--debug'):
-            debug = arg == 'true'
+            debug = True
+        elif opt in ('--ebv'):
+            Ebv = float(arg)
+        elif opt in ('--l1centroid'):
+            Hdelta = int(arg)
+        elif opt in ('--l1label'):
+            HdeltaLabel = arg
+        elif opt in ('--l2centroid'):
+            Hgamma = int(arg)
+        elif opt in ('--l2label'):
+            HgammaLabel = arg
+        elif opt in ('--l3centroid'):
+            Hbeta = int(arg)
+        elif opt in ('--l3label'):
+            HbetaLabel = arg
+        elif opt in ('--l4centroid'):
+            Halpha = int(arg)
+        elif opt in ('--l4label'):
+            HalphaLabel = arg
+        elif opt in ('--wavelenghtLowerLimit'):
+            WavelenghtLowerLimit = int(arg)
+        elif opt in ('--wavelenghtUpperLimit'):
+            WavelenghtUpperLimit = int(arg)
     
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -118,16 +152,29 @@ def main(argv):
             spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
             listFITS.append([filename, spec.meta['header']['DATE-OBS']])
         
-        sortedFITS = list(map(reduceSortedFITSArrayByFilename, sorted(listFITS)))
-        sortedFDates = list(map(reduceSortedFITSArrayByDate, sorted(listFITS)))
+        if (len(listFITS) <= 0):
+            print('No FITs found on folder ' + path)
+            sys.exit()
+        
+        sortedFITS = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
+        sortedFDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
+
+        csv = open(path + 'lines_measurements.csv', 'w')
+        csv.write('Spectra file;')
+        csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
+        csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
+        csv.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
+        csv.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm')
+        csv.write('\n')
 
         for filename in sortedFITS:
             if not filename.endswith('.fits'):
                 continue
             
             report = open(path + filename + '.txt', 'w')
-            
             report.write('Filename: ' + filename + '\n')
+
+            csv.write(filename + ';')
 
             # Read FITS
             hdul = fits.open(path + filename, mode='readonly', memmap = True)
@@ -150,8 +197,9 @@ def main(argv):
             report.write('Object: ' + spec.meta['header']['OBJECT'] + '\n')
 
             # Limit the spectrum between the lower and upper range
-            flux, wavelength = limitSpectraArray(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
-            
+            flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
+            report.write('Wavelenth limited from ' + str(WavelenghtLowerLimit) + ' to ' + str(WavelenghtUpperLimit) + ' Angstrom\n')
+
             if debug:
                 report.write('Flux and wavelength spectra:' + '\n')
                 report.write(repr(flux) + '\n')
@@ -169,6 +217,8 @@ def main(argv):
             ext = F99(Rv=3.1)
             flux_ext = spec.flux * ext.extinguish(spec.spectral_axis, Ebv=Ebv)
             spec = Spectrum1D(spectral_axis=spec.wavelength, flux=flux_ext, meta=spec.meta)
+            report.write('Applied dust extintion factor of: ' + str(Ebv) + '\n')
+            report.write('\n')
             
             fig = plt.figure()
             fig.suptitle(filename)
@@ -457,25 +507,31 @@ def main(argv):
                 report.write('\n')
 
             # Measure lines finding paddign from amx fwhm
-            haCalculations = measureLineMaxFwhm(Halpha, spec_normalized, spec_flux)
-            hbCalculations = measureLineMaxFwhm(Hbeta, spec_normalized, spec_flux)
-            hgCalculations = measureLineMaxFwhm(Hgamma, spec_normalized, spec_flux)
-            hdCalculations = measureLineMaxFwhm(Hdelta, spec_normalized, spec_flux)
+            haCalculations = measure_line_max_fwhm(Halpha, spec_normalized, spec_flux)
+            hbCalculations = measure_line_max_fwhm(Hbeta, spec_normalized, spec_flux)
+            hgCalculations = measure_line_max_fwhm(Hgamma, spec_normalized, spec_flux)
+            hdCalculations = measure_line_max_fwhm(Hdelta, spec_normalized, spec_flux)
             fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
             equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
             centroidData = [haCalculations[3], hbCalculations[3], hgCalculations[3], hdCalculations[3]]
 
-            haValues = np.array(['Halpha', fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
-            hbValues = np.array(['Hbeta', fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
-            hgValues = np.array(['Hgamma', fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
-            hdValues = np.array(['Hdelta', fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
+            haValues = np.array([HalphaLabel, fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
+            hbValues = np.array([HbetaLabel, fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
+            hgValues = np.array([HgammaLabel, fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
+            hdValues = np.array([HdeltaLabel, fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
             
             lines = np.array([haValues, hbValues, hgValues, hdValues])
             report.write('Lines analisys' + '\n')
             report.write(tabulate(lines, headers=['Line','Flux','FWHM', 'Equivalent width', 'Centroid']) + '\n')
             report.write('* Units: ' + str(fluxData[0].unit))
             report.write('\n')
+
+            csv.write(str(fluxData[0].value) + ';' + str(fwhmData[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(centroidData[0].value) + ';')
+            csv.write(str(fluxData[1].value) + ';' + str(fwhmData[1].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(centroidData[1].value) + ';')
+            csv.write(str(fluxData[2].value) + ';' + str(fwhmData[2].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(centroidData[2].value) + ';')
+            csv.write(str(fluxData[3].value) + ';' + str(fwhmData[3].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(centroidData[3].value))
+            csv.write('\n')
             
             # Calculate lines evolution
             Halpha_Hbeta.append(fluxData[0] / fluxData[1])
@@ -484,23 +540,26 @@ def main(argv):
             evolutionPlane.append(sortedFDates[count])
             count += 1
             
-            # Plot figure
+            # Plot figure and close
             plt.savefig(path + filename + '.png')
             plt.clf()
             hdul.close()
-            
+            report.close()
+
             print('Completed ' + filename + ' at ' + datetime.now().strftime('%H:%M:%S'))
-            break # Just a test to only process the first spectrum of the folder
+            #break # Just a test to only process the first spectrum of the folder
             
         fig, ax = plt.subplots()
-        ax.plot(evolutionPlane, Halpha_Hbeta, label = 'Halpha/Hbeta')
-        ax.plot(evolutionPlane, Hgamma_Hbeta, label = 'Hgamma/Hbeta')
-        ax.plot(evolutionPlane, Hdelta_Hbeta, label = 'Hdelta/Hbeta')
-        ax.set(xlabel = 'Date', ylabel = 'Flux Hbeta factor')
+        ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
+        ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
+        ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
+        ax.set(xlabel = 'Date', ylabel = 'Flux ' + HbetaLabel + ' factor')
         fig.autofmt_xdate()
         plt.legend()
         plt.savefig(path + 'lines-evolution.png')
         plt.clf()
+
+        csv.close()
 
         endTime = datetime.now()
         print('Completed at ' + datetime.now().strftime('%H:%M:%S'))
