@@ -159,7 +159,7 @@ def main(argv):
         sortedFITS = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
         sortedFDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
 
-        csv = open(path + 'lines_measurements.csv', 'w')
+        csv = open(path + 'lines_measurements_ebv' + str(Ebv) + '.csv', 'w')
         csv.write('Spectra file;')
         csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
         csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
@@ -527,10 +527,10 @@ def main(argv):
             report.write('* Units: ' + str(fluxData[0].unit))
             report.write('\n')
 
-            csv.write(str(fluxData[0].value) + ';' + str(fwhmData[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(centroidData[0].value) + ';')
-            csv.write(str(fluxData[1].value) + ';' + str(fwhmData[1].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(centroidData[1].value) + ';')
-            csv.write(str(fluxData[2].value) + ';' + str(fwhmData[2].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(centroidData[2].value) + ';')
-            csv.write(str(fluxData[3].value) + ';' + str(fwhmData[3].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(centroidData[3].value))
+            csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
+            csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
+            csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
+            csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value))
             csv.write('\n')
             
             # Calculate lines evolution
@@ -556,7 +556,7 @@ def main(argv):
         ax.set(xlabel = 'Date', ylabel = 'Flux ' + HbetaLabel + ' factor')
         fig.autofmt_xdate()
         plt.legend()
-        plt.savefig(path + 'lines-evolution.png')
+        plt.savefig(path + 'lines_evolution_ebv' + str(Ebv) + '.png')
         plt.clf()
 
         csv.close()
