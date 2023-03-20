@@ -10,6 +10,7 @@ Install with:
 `pip install specutils`
 `pip install matplotlib`
 `pip install tabulate`
+`pip install dust_extinction`
 
 ## Script
 Run with:

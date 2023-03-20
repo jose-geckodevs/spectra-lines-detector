@@ -12,6 +12,7 @@ from specutils.fitting import find_lines_derivative
 from specutils.fitting import estimate_line_parameters
 from specutils.manipulation import extract_region
 from specutils.analysis import centroid, fwhm, line_flux, equivalent_width
+from dust_extinction.parameter_averages import F99
 import matplotlib.pyplot as plt
 import numpy as np
 import copy, os, sys, getopt, warnings
@@ -24,17 +25,18 @@ Hgamma = 4341
 Hdelta = 4102
 WavelenghtLowerLimit = 4000
 WavelenghtUpperLimit = 7000
+Ebv = -0.6
 
-def limitSpectraArray(low: int, up: int, spectrum: Spectrum1D):
-    foundLowerIndex = 0
-    foundUpperIndex = 0
-    for index, wavelength in enumerate(spectrum.wavelength):
-        if wavelength.value >= low and spectrum.flux.value[index] != 0 and not foundLowerIndex:
-            foundLowerIndex = index
-        if wavelength.value >= up and not foundUpperIndex:
-            foundUpperIndex = index
+def limitSpectraArray(_low: int, _up: int, _spectrum: Spectrum1D):
+    _foundLowerIndex = 0
+    _foundUpperIndex = 0
+    for index, wavelength in enumerate(_spectrum.wavelength):
+        if wavelength.value >= _low and _spectrum.flux.value[index] != 0 and not _foundLowerIndex:
+            _foundLowerIndex = index
+        if wavelength.value >= _up and not _foundUpperIndex:
+            _foundUpperIndex = index
             break
-    return spectrum.flux.value[foundLowerIndex:foundUpperIndex] * spectrum.flux.unit, spectrum.wavelength.value[foundLowerIndex:foundUpperIndex] * spectrum.wavelength.unit
+    return _spectrum.flux.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.flux.unit, _spectrum.wavelength.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.wavelength.unit
 
 def reduceSortedFITSArrayByFilename(item: list):
     return item[0]
@@ -42,34 +44,34 @@ def reduceSortedFITSArrayByFilename(item: list):
 def reduceSortedFITSArrayByDate(item: list):
     return item[1]
 
-def measureLinesFixed(_spec_norm: Spectrum1D):
-    padding = 50
-    regions = [SpectralRegion((Halpha - padding) * u.AA, (Halpha + padding) * u.AA ), SpectralRegion((Hbeta - padding) * u.AA, (Hbeta + padding) * u.AA ), SpectralRegion((Hgamma - padding) * u.AA, (Hgamma + padding) * u.AA ), SpectralRegion((Hdelta - padding) * u.AA, (Hdelta + padding) * u.AA )]
-    _fluxData = line_flux(_spec_norm, regions = regions)
-    _fwhmData = fwhm(_spec_norm, regions = regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = regions)
-    _centroidData = centroid(_spec_norm, regions = regions)
+def measureLinesFixed(_center: float, _spec_norm: Spectrum1D):
+    _padding = 50
+    _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
+    _fluxData = line_flux(_spec_norm, regions = _regions)
+    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+    _centroidData = centroid(_spec_norm, regions = _regions)
 
     return _fluxData, _fwhmData, _equivalentWidthData, _centroidData
 
-def measureLineMaxFwhm(center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
-    padding = 5
-    precision = 2
-    previousFwhm = u.Quantity(0)
-    regions = []
+def measureLineMaxFwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+    _padding = 5
+    _precision = 2
+    _previousFwhm = u.Quantity(0)
+    _regions = []
     while(padding < 100):
-        regions = [SpectralRegion((center - padding) * u.AA, (center + padding) * u.AA )]
-        fwhmData = fwhm(_spec_norm, regions = regions)
-        if (round(fwhmData[0].value, precision) <= round(previousFwhm.value, precision)):
+        _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
+        fwhmData = fwhm(_spec_norm, regions = _regions)
+        if (round(fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
-        previousFwhm = fwhmData[0]
+        _previousFwhm = fwhmData[0]
         padding += 5
 
-    _fluxData = line_flux(_spec_flux, regions = regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = regions)
-    _centroidData = centroid(_spec_norm, regions = regions)
+    _fluxData = line_flux(_spec_flux, regions = _regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+    _centroidData = centroid(_spec_norm, regions = _regions)
 
-    return _fluxData[0], previousFwhm, _equivalentWidthData[0], _centroidData[0]
+    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0]
 
 def main(argv):
     quantity_support() 
@@ -130,7 +132,9 @@ def main(argv):
                 report.write('\n')
             
             # Read the spectrum
-            spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
+            redshift = None # set scalar value
+            spec = Spectrum1D.read(path + filename, format='wcs1d-fits', redshift=redshift)
+            
             if debug:
                 report.write(repr(spec.meta['header']) + '\n')
                 report.write('\n')
@@ -156,6 +160,11 @@ def main(argv):
             meta['header']['NAXIS1'] = len(wavelength)
             meta['header']['CRVAL1'] = wavelength.value[0]
             spec = Spectrum1D(spectral_axis=wavelength, flux=flux, meta=meta)
+
+            # Extinguish (redden) the spectrum
+            ext = F99(Rv=3.1)
+            flux_ext = spec.flux * ext.extinguish(spec.spectral_axis, Ebv=Ebv)
+            spec = Spectrum1D(spectral_axis=spec.wavelength, flux=flux_ext, meta=spec.meta)
             
             fig = plt.figure()
             fig.suptitle(filename)
@@ -366,6 +375,7 @@ def main(argv):
                 ax6.plot(wavelength, y_continuum_fitted);
                 
                 spec_normalized = spec / y_continuum_fitted
+                spec_flux = spec - y_continuum_fitted
                 ax7.clear()
                 ax7.set_ylabel("Normalised")
                 ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
@@ -441,9 +451,6 @@ def main(argv):
                 report.write('Found lines (derivative threshold 0.95):' + '\n')
                 report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
-            
-            # Measure lines fixed padding
-            #fluxData, fwhmData, equivalentWidthData, centroidData = measureLinesFixed(spec_normalized)
 
             # Measure lines finding paddign from amx fwhm
             haCalculations = measureLineMaxFwhm(Halpha, spec_normalized, spec_flux)
@@ -479,7 +486,7 @@ def main(argv):
             hdul.close()
             
             print('Completed ' + filename + ' at ' + datetime.now().strftime("%H:%M:%S"))
-            #break # Just a test to only process the first spectrum of the folder
+            break # Just a test to only process the first spectrum of the folder
             
         fig, ax = plt.subplots()
         ax.plot(evolutionPlane, Halpha_Hbeta, label = 'Halpha/Hbeta')
@@ -497,4 +504,3 @@ def main(argv):
         
 if __name__ == "__main__":
    main(sys.argv[1:])
-   
