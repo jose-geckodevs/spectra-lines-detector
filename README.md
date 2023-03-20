@@ -1,5 +1,10 @@
 # FITS spectra analyser
-Python script to analyse a set of FITS spectra novae, extract absortion and emission lines, remove continuum, measure H lines (alpha, beta, gamma and delta), and plot lines Hbeta factor evolution in time.
+Python script to analyse a set of FITS spectra novae, extract absortion and emission lines, remove continuum, and measure 4 lines: Hdelta(1), Hgamma(2), Hbeta(3) and Halpha(4) by default.
+Wavelenght limited from 4000 to 7000 Angstrom by default.
+Dust extintion removal (redden).
+Plot graphs and texts report for each spectra.
+Plot line graph Hbeta(3) factor evolution in time against the other lines. 
+Single csv report with flux, fwhm, equivalent width and centroid.
 
 ## Requires
 pyhton 3.x
@@ -14,10 +19,19 @@ Install with:
 
 ## Script
 Run with:
-`python3 display_fits_spectra_advance.py -p ./V5114Sgr`
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr`
 
 Adding debug flag:
-`python3 display_fits_spectra_advance.py -d true -p ./V5114Sgr`
+`python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr`
+
+Dust extintion:
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv -0.6`
+
+Advanced parameters:
+`--l1centroid 4102 --l1label Hdelta`
+`--l2centroid 4341 --l2label Hgamma`
+`--l3centroid 4861 --l3label Hbeta`
+`--l4centroid 6563 --l4label Halpha`
 
 ## OSX
 Download pip:
