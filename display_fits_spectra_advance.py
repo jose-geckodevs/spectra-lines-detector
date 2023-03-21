@@ -96,7 +96,7 @@ def main(argv):
 
     try:
         opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','ebv=',
-                                                'wavelenghtLowerLimit=','wavelenghtUpperLimit='
+                                                'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='])
     except getopt.GetoptError:
@@ -188,20 +188,20 @@ def main(argv):
             
             # Read the spectrum
             redshift = None # set scalar value
-            spec = Spectrum1D.read(path + filename, format='wcs1d-fits', redshift=redshift)
+            spec_original = Spectrum1D.read(path + filename, format='wcs1d-fits', redshift=redshift)
             
             if debug:
-                report.write(repr(spec.meta['header']) + '\n')
+                report.write(repr(spec_original.meta['header']) + '\n')
                 report.write('\n')
 
-            report.write('Date observation: ' + spec.meta['header']['DATE-OBS'] + '\n')
-            report.write('Exposure time: ' + str(spec.meta['header']['EXPTIME']) + '\n')
-            report.write('Telescope: ' + spec.meta['header']['TELESCOP'] + '\n')
-            report.write('Instrument: ' + spec.meta['header']['INSTRUME'] + '\n')
-            report.write('Object: ' + spec.meta['header']['OBJECT'] + '\n')
+            report.write('Date observation: ' + spec_original.meta['header']['DATE-OBS'] + '\n')
+            report.write('Exposure time: ' + str(spec_original.meta['header']['EXPTIME']) + '\n')
+            report.write('Telescope: ' + spec_original.meta['header']['TELESCOP'] + '\n')
+            report.write('Instrument: ' + spec_original.meta['header']['INSTRUME'] + '\n')
+            report.write('Object: ' + spec_original.meta['header']['OBJECT'] + '\n')
 
             # Limit the spectrum between the lower and upper range
-            flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
+            flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec_original)
             report.write('Wavelenth limited from ' + str(WavelenghtLowerLimit) + ' to ' + str(WavelenghtUpperLimit) + ' Angstrom\n')
 
             if debug:
@@ -211,16 +211,16 @@ def main(argv):
                 report.write('\n')
             
             # Make a copy of the spectrum object with the new flux and wavelenght arrays
-            meta = copy.copy(spec.meta)
+            meta = copy.copy(spec_original.meta)
             # Not sure if we need to modify the header, but we do just in case
             meta['header']['NAXIS1'] = len(wavelength)
             meta['header']['CRVAL1'] = wavelength.value[0]
-            spec = Spectrum1D(spectral_axis=wavelength, flux=flux, meta=meta)
+            spec_limited = Spectrum1D(spectral_axis=wavelength, flux=flux, meta=meta)
 
             # Extinguish (redden) the spectrum
             ext = F99(Rv=3.1)
-            flux_ext = spec.flux * ext.extinguish(spec.spectral_axis, Ebv=Ebv)
-            spec = Spectrum1D(spectral_axis=spec.wavelength, flux=flux_ext, meta=spec.meta)
+            flux_ext = spec_limited.flux * ext.extinguish(spec_limited.spectral_axis, Ebv=Ebv)
+            spec = Spectrum1D(spectral_axis=spec_limited.wavelength, flux=flux_ext, meta=spec_limited.meta)
             report.write('Applied dust extintion factor of: ' + str(Ebv) + '\n')
             report.write('\n')
             
@@ -237,7 +237,9 @@ def main(argv):
             ax7 = fig.add_subplot(gs[3, :])        
             
             # Plot initial spectrum
-            ax5.plot(wavelength, flux)
+            ax5.plot(spec_limited.wavelength, spec_limited.flux)
+            # Plot redden spectrum
+            ax5.plot(spec.wavelength, spec.flux)
             
             # Try find the continuum without the lines
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
@@ -277,9 +279,9 @@ def main(argv):
                     includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
                     excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                     # Include first regions
-                    fluxContinuumRegions.append(flux[0].value)
+                    fluxContinuumRegions.append(spec.flux[0].value)
                     wavelengthContinuumRegions.append(WavelenghtLowerLimit)
-                    fluxContinuumRegions.append(flux[0].value)
+                    fluxContinuumRegions.append(spec.flux[0].value)
                     wavelengthContinuumRegions.append(row[0].value - padding)
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(row[0].value - padding)
@@ -291,9 +293,9 @@ def main(argv):
                     # Include regions
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(flux[0].value)
+                    fluxContinuumRegions.append(spec.flux[0].value)
                     wavelengthContinuumRegions.append((previousLine + padding))
-                    fluxContinuumRegions.append(flux[0].value)
+                    fluxContinuumRegions.append(spec.flux[0].value)
                     wavelengthContinuumRegions.append((row[0].value - padding))
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append((row[0].value - padding))
@@ -305,9 +307,9 @@ def main(argv):
                 # Include last region
                 fluxContinuumRegions.append(0)
                 wavelengthContinuumRegions.append(previousLine + padding)
-                fluxContinuumRegions.append(flux[0].value)
+                fluxContinuumRegions.append(spec.flux[0].value)
                 wavelengthContinuumRegions.append(previousLine + padding)
-                fluxContinuumRegions.append(flux[0].value)
+                fluxContinuumRegions.append(spec.flux[0].value)
                 wavelengthContinuumRegions.append(WavelenghtUpperLimit)
             else:
                 # Include last region
@@ -340,9 +342,9 @@ def main(argv):
             #g1_fit = fit_continuum(spec, window=includeRegions)
             g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
             #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
-            y_continuum_fitted = g1_fit(wavelength)
-            ax6.plot(wavelength, flux);
-            ax6.plot(wavelength, y_continuum_fitted);
+            y_continuum_fitted = g1_fit(spec.wavelength)
+            ax6.plot(spec.wavelength, spec.flux);
+            ax6.plot(spec.wavelength, y_continuum_fitted);
             
             ax7.set_ylabel('Normalised')
             spec_normalized = spec / y_continuum_fitted
@@ -372,9 +374,9 @@ def main(argv):
                         includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
                         excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                         # Include first regions
-                        fluxContinuumRegions.append(flux[0].value)
+                        fluxContinuumRegions.append(spec.flux[0].value)
                         wavelengthContinuumRegions.append(WavelenghtLowerLimit)
-                        fluxContinuumRegions.append(flux[0].value)
+                        fluxContinuumRegions.append(spec.flux[0].value)
                         wavelengthContinuumRegions.append(row[0].value - padding)
                         fluxContinuumRegions.append(0)
                         wavelengthContinuumRegions.append(row[0].value - padding)
@@ -386,9 +388,9 @@ def main(argv):
                         # Include regions
                         fluxContinuumRegions.append(0)
                         wavelengthContinuumRegions.append(previousLine + padding)
-                        fluxContinuumRegions.append(flux[0].value)
+                        fluxContinuumRegions.append(spec.flux[0].value)
                         wavelengthContinuumRegions.append((previousLine + padding))
-                        fluxContinuumRegions.append(flux[0].value)
+                        fluxContinuumRegions.append(spec.flux[0].value)
                         wavelengthContinuumRegions.append((row[0].value - padding))
                         fluxContinuumRegions.append(0)
                         wavelengthContinuumRegions.append((row[0].value - padding))
@@ -400,9 +402,9 @@ def main(argv):
                     # Include last region
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(flux[0].value)
+                    fluxContinuumRegions.append(spec.flux[0].value)
                     wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(flux[0].value)
+                    fluxContinuumRegions.append(spec.flux[0].value)
                     wavelengthContinuumRegions.append(WavelenghtUpperLimit)
                 else:
                     # Include last region
@@ -429,8 +431,8 @@ def main(argv):
                 #g1_fit = fit_continuum(spec, window=includeRegions)
                 g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
                 #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
-                y_continuum_fitted = g1_fit(wavelength)
-                ax6.plot(wavelength, y_continuum_fitted);
+                y_continuum_fitted = g1_fit(spec.wavelength)
+                ax6.plot(spec.wavelength, y_continuum_fitted);
                 
                 spec_normalized = spec / y_continuum_fitted
                 spec_flux = spec - y_continuum_fitted
