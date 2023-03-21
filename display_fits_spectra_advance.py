@@ -92,16 +92,20 @@ def main(argv):
     WavelenghtLowerLimit = 4000
     WavelenghtUpperLimit = 7000
     Ebv = 0
+    inputParams = ''
 
     try:
         opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','ebv=',
-                                                'wavelenghtLowerLimit','wavelenghtUpperLimit'
+                                                'wavelenghtLowerLimit=','wavelenghtUpperLimit='
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
     for opt, arg in opts:
+        if opt not in ('-p', '--path'):
+            inputParams += opt + arg
+
         if opt in ('-h', '--help'):
             print_help()
             sys.exit()
@@ -131,7 +135,7 @@ def main(argv):
             WavelenghtLowerLimit = int(arg)
         elif opt in ('--wavelenghtUpperLimit'):
             WavelenghtUpperLimit = int(arg)
-    
+
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         
@@ -159,7 +163,7 @@ def main(argv):
         sortedFITS = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
         sortedFDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
 
-        csv = open(path + 'lines_measurements_ebv' + str(Ebv) + '.csv', 'w')
+        csv = open(path + 'lines_measurements' + inputParams + '.csv', 'w')
         csv.write('Spectra file;')
         csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
         csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
@@ -556,7 +560,7 @@ def main(argv):
         ax.set(xlabel = 'Date', ylabel = 'Flux ' + HbetaLabel + ' factor')
         fig.autofmt_xdate()
         plt.legend()
-        plt.savefig(path + 'lines_evolution_ebv' + str(Ebv) + '.png')
+        plt.savefig(path + 'lines_evolution' + inputParams + '.png')
         plt.clf()
 
         csv.close()
