@@ -27,6 +27,10 @@ Adding debug flag:
 Dust extintion:
 `python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv -0.6`
 
+Wavelenght limits
+`--wavelenghtLowerLimit 4000`
+`--wavelenghtUpperLimit 7000`
+
 Advanced parameters:
 `--l1centroid 4102 --l1label Hdelta`
 `--l2centroid 4341 --l2label Hgamma`
