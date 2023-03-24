@@ -12,7 +12,10 @@ from specutils.fitting import find_lines_derivative
 from specutils.fitting import estimate_line_parameters
 from specutils.manipulation import extract_region
 from specutils.analysis import centroid, fwhm, line_flux, equivalent_width
-from dust_extinction.parameter_averages import F99
+from dust_extinction.averages import *
+from dust_extinction.parameter_averages import *
+from dust_extinction.grain_models import *
+from dust_extinction.shapes import *
 import matplotlib.pyplot as plt
 import numpy as np
 import copy, os, sys, getopt, warnings
@@ -68,7 +71,10 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
 def print_help():
     print('display_fits_spectra_advance.py')
     print('         --debug <debug mode>''')
-    print('         --path <include path for spectra> --ebv <dust extintion value>')
+    print('         --path <include path for spectra>')
+    print('         --ebv <Ebv dust extintion value>')
+    print('         --rv <Rv dust extintion value>')
+    print('         --model <dust extintion model>')
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
     print('         --wavelenghtLowerLimit <lower angstrom limit> --wavelenghtUpperLimit <higher angstrom limit>')
     print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
@@ -92,10 +98,12 @@ def main(argv):
     WavelenghtLowerLimit = 4000
     WavelenghtUpperLimit = 7000
     Ebv = 0
+    Rv = 3.1
+    Model = F99
     inputParams = ''
 
     try:
-        opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','ebv=',
+        opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='])
@@ -115,6 +123,10 @@ def main(argv):
             debug = True
         elif opt in ('--ebv'):
             Ebv = float(arg)
+        elif opt in ('--rv'):
+            Rv = float(arg)
+        elif opt in ('--model'):
+            Model = eval(arg)
         elif opt in ('--l1centroid'):
             Hdelta = int(arg)
         elif opt in ('--l1label'):
@@ -171,6 +183,7 @@ def main(argv):
         csv.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm')
         csv.write('\n')
 
+        counter = 0
         for filename in sortedFITS:
             if not filename.endswith('.fits'):
                 continue
@@ -217,13 +230,19 @@ def main(argv):
             meta['header']['CRVAL1'] = wavelength.value[0]
             spec_limited = Spectrum1D(spectral_axis=wavelength, flux=flux, meta=meta)
 
-            # Extinguish (redden) the spectrum
-            ext = F99(Rv=3.1)
-            flux_ext = spec_limited.flux * ext.extinguish(spec_limited.spectral_axis, Ebv=Ebv)
-            spec = Spectrum1D(spectral_axis=spec_limited.wavelength, flux=flux_ext, meta=spec_limited.meta)
-            report.write('Applied dust extintion factor of: ' + str(Ebv) + '\n')
-            report.write('\n')
-            
+            # Unextinguish (deredden) the spectrum if value <> 0
+            if (Ebv == 0):
+                spec = Spectrum1D(spectral_axis=spec_limited.wavelength, flux=spec_limited.flux, meta=spec_limited.meta)
+            else:
+                try:
+                    ext = Model(Rv=Rv)
+                except:
+                    ext = Model()
+                flux_ext = spec_limited.flux / ext.extinguish(spec_limited.spectral_axis, Ebv=Ebv)
+                spec = Spectrum1D(spectral_axis=spec_limited.wavelength, flux=flux_ext, meta=spec_limited.meta)
+                report.write('Applied dust extintion factor of: ' + str(Ebv) + ' to deredden spectrum\n')
+                report.write('\n')
+
             fig = plt.figure()
             fig.suptitle(filename)
             fig.set_figheight(15)
@@ -552,18 +571,21 @@ def main(argv):
             hdul.close()
             report.close()
 
+            counter = counter + 1
+
             print('Completed ' + filename + ' at ' + datetime.now().strftime('%H:%M:%S'))
             #break # Just a test to only process the first spectrum of the folder
             
-        fig, ax = plt.subplots()
-        ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
-        ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
-        ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
-        ax.set(xlabel = 'Date', ylabel = 'Flux ' + HbetaLabel + ' factor')
-        fig.autofmt_xdate()
-        plt.legend()
-        plt.savefig(path + 'lines_evolution' + inputParams + '.png')
-        plt.clf()
+        if (counter > 1):
+            fig, ax = plt.subplots()
+            ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
+            ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
+            ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
+            ax.set(xlabel = 'Date', ylabel = 'Flux ' + HbetaLabel + ' factor')
+            fig.autofmt_xdate()
+            plt.legend()
+            plt.savefig(path + 'lines_evolution' + inputParams + '.png')
+            plt.clf()
 
         csv.close()
 

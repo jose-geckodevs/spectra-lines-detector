@@ -25,7 +25,7 @@ Adding debug flag:
 `python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr`
 
 Dust extintion:
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv -0.6`
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv 0.6 --rv 3.1 --model F99`
 
 Wavelenght limits
 `--wavelenghtLowerLimit 4000`
