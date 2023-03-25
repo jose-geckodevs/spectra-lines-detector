@@ -70,7 +70,8 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
 
 def print_help():
     print('display_fits_spectra_advance.py')
-    print('         --debug <debug mode>''')
+    print('         --debug')
+    print('         --only-one')
     print('         --path <include path for spectra>')
     print('         --ebv <Ebv dust extintion value>')
     print('         --rv <Rv dust extintion value>')
@@ -86,6 +87,7 @@ def main(argv):
     
     path = './'
     debug = False
+    onlyOne = False
     
     Halpha = 6563
     HalphaLabel = 'Halpha'
@@ -103,7 +105,7 @@ def main(argv):
     inputParams = ''
 
     try:
-        opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','ebv=','rv=','model=',
+        opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','only-one','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='])
@@ -121,6 +123,8 @@ def main(argv):
             path = arg + '/'
         elif opt in ('-d', '--debug'):
             debug = True
+        elif opt in ('--only-one'):
+            onlyOne = True
         elif opt in ('--ebv'):
             Ebv = float(arg)
         elif opt in ('--rv'):
@@ -245,20 +249,20 @@ def main(argv):
 
             fig = plt.figure()
             fig.suptitle(filename)
-            fig.set_figheight(15)
-            gs = fig.add_gridspec(4,4)
+            fig.set_figwidth(15)
+            fig.set_figheight(25)
+            gs = fig.add_gridspec(5,4)
             ax1 = fig.add_subplot(gs[0, 0])
             ax2 = fig.add_subplot(gs[0, 1])
             ax3 = fig.add_subplot(gs[0, 2])
             ax4 = fig.add_subplot(gs[0, 3])
             ax5 = fig.add_subplot(gs[1, :])
             ax6 = fig.add_subplot(gs[2, :])
-            ax7 = fig.add_subplot(gs[3, :])        
+            ax7 = fig.add_subplot(gs[3, :])
+            ax8 = fig.add_subplot(gs[4, :])
             
             # Plot initial spectrum
             ax5.plot(spec_limited.wavelength, spec_limited.flux)
-            # Plot redden spectrum
-            ax5.plot(spec.wavelength, spec.flux)
             
             # Try find the continuum without the lines
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
@@ -298,9 +302,9 @@ def main(argv):
                     includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
                     excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                     # Include first regions
-                    fluxContinuumRegions.append(spec.flux[0].value)
+                    fluxContinuumRegions.append(spec_limited.flux[0].value)
                     wavelengthContinuumRegions.append(WavelenghtLowerLimit)
-                    fluxContinuumRegions.append(spec.flux[0].value)
+                    fluxContinuumRegions.append(spec_limited.flux[0].value)
                     wavelengthContinuumRegions.append(row[0].value - padding)
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(row[0].value - padding)
@@ -312,9 +316,9 @@ def main(argv):
                     # Include regions
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(spec.flux[0].value)
+                    fluxContinuumRegions.append(spec_limited.flux[0].value)
                     wavelengthContinuumRegions.append((previousLine + padding))
-                    fluxContinuumRegions.append(spec.flux[0].value)
+                    fluxContinuumRegions.append(spec_limited.flux[0].value)
                     wavelengthContinuumRegions.append((row[0].value - padding))
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append((row[0].value - padding))
@@ -326,9 +330,9 @@ def main(argv):
                 # Include last region
                 fluxContinuumRegions.append(0)
                 wavelengthContinuumRegions.append(previousLine + padding)
-                fluxContinuumRegions.append(spec.flux[0].value)
+                fluxContinuumRegions.append(spec_limited.flux[0].value)
                 wavelengthContinuumRegions.append(previousLine + padding)
-                fluxContinuumRegions.append(spec.flux[0].value)
+                fluxContinuumRegions.append(spec_limited.flux[0].value)
                 wavelengthContinuumRegions.append(WavelenghtUpperLimit)
             else:
                 # Include last region
@@ -369,6 +373,9 @@ def main(argv):
             spec_normalized = spec / y_continuum_fitted
             spec_flux = spec - y_continuum_fitted
             ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+
+            ax8.set_ylabel('Flux')
+            ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
             
             # Find now lines by thresholding using the normalised spectrum
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
@@ -393,9 +400,9 @@ def main(argv):
                         includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
                         excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
                         # Include first regions
-                        fluxContinuumRegions.append(spec.flux[0].value)
+                        fluxContinuumRegions.append(spec_limited.flux[0].value)
                         wavelengthContinuumRegions.append(WavelenghtLowerLimit)
-                        fluxContinuumRegions.append(spec.flux[0].value)
+                        fluxContinuumRegions.append(spec_limited.flux[0].value)
                         wavelengthContinuumRegions.append(row[0].value - padding)
                         fluxContinuumRegions.append(0)
                         wavelengthContinuumRegions.append(row[0].value - padding)
@@ -407,9 +414,9 @@ def main(argv):
                         # Include regions
                         fluxContinuumRegions.append(0)
                         wavelengthContinuumRegions.append(previousLine + padding)
-                        fluxContinuumRegions.append(spec.flux[0].value)
+                        fluxContinuumRegions.append(spec_limited.flux[0].value)
                         wavelengthContinuumRegions.append((previousLine + padding))
-                        fluxContinuumRegions.append(spec.flux[0].value)
+                        fluxContinuumRegions.append(spec_limited.flux[0].value)
                         wavelengthContinuumRegions.append((row[0].value - padding))
                         fluxContinuumRegions.append(0)
                         wavelengthContinuumRegions.append((row[0].value - padding))
@@ -421,9 +428,9 @@ def main(argv):
                     # Include last region
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(spec.flux[0].value)
+                    fluxContinuumRegions.append(spec_limited.flux[0].value)
                     wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(spec.flux[0].value)
+                    fluxContinuumRegions.append(spec_limited.flux[0].value)
                     wavelengthContinuumRegions.append(WavelenghtUpperLimit)
                 else:
                     # Include last region
@@ -458,6 +465,10 @@ def main(argv):
                 ax7.clear()
                 ax7.set_ylabel('Normalised')
                 ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+
+                ax8.clear()
+                ax8.set_ylabel('Flux')
+                ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
                 
                 # Find now lines by thresholding using the normalised spectrum
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
@@ -574,7 +585,9 @@ def main(argv):
             counter = counter + 1
 
             print('Completed ' + filename + ' at ' + datetime.now().strftime('%H:%M:%S'))
-            #break # Just a test to only process the first spectrum of the folder
+            
+            if (onlyOne):
+                break # Just as test to only process the first spectrum of the folder
             
         if (counter > 1):
             fig, ax = plt.subplots()
