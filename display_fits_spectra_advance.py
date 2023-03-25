@@ -350,7 +350,7 @@ def main(argv):
                 report.write(repr(fluxContinuumRegions) + '\n')
                 report.write(repr(wavelengthContinuumRegions) + '\n')
                 report.write('\n')
-            ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions);
+            ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions)
             
             # If no lines found, be sure we add the whole spectrum
             if (len(includeRegions) <= 0):
@@ -362,13 +362,13 @@ def main(argv):
             g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
             #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
             y_continuum_fitted = g1_fit(spec.wavelength)
-            ax6.plot(spec.wavelength, spec.flux);
-            ax6.plot(spec.wavelength, y_continuum_fitted);
+            ax6.plot(spec.wavelength, spec.flux)
+            ax6.plot(spec.wavelength, y_continuum_fitted)
             
             ax7.set_ylabel('Normalised')
             spec_normalized = spec / y_continuum_fitted
             spec_flux = spec - y_continuum_fitted
-            ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
+            ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
             
             # Find now lines by thresholding using the normalised spectrum
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
@@ -440,7 +440,7 @@ def main(argv):
                     report.write('\n')
                     
                 # Draw the continuum regions for reference
-                ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions);
+                ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions)
                 
                 # If no lines found, be sure we add the whole spectrum
                 if (len(includeRegions) <= 0):
@@ -451,13 +451,13 @@ def main(argv):
                 g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
                 #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
                 y_continuum_fitted = g1_fit(spec.wavelength)
-                ax6.plot(spec.wavelength, y_continuum_fitted);
+                ax6.plot(spec.wavelength, y_continuum_fitted)
                 
                 spec_normalized = spec / y_continuum_fitted
                 spec_flux = spec - y_continuum_fitted
                 ax7.clear()
                 ax7.set_ylabel('Normalised')
-                ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux);
+                ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
                 
                 # Find now lines by thresholding using the normalised spectrum
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
