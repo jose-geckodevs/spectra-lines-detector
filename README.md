@@ -29,6 +29,7 @@ Only one flag:
 
 Dust extintion:
 `python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv 0.6 --rv 3.1 --model F99`
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv 0.6 --rv 3.2 --model CCM89`
 
 Wavelenght limits
 `--wavelenghtLowerLimit 4000`

@@ -244,7 +244,7 @@ def main(argv):
                     ext = Model()
                 flux_ext = spec_limited.flux / ext.extinguish(spec_limited.spectral_axis, Ebv=Ebv)
                 spec = Spectrum1D(spectral_axis=spec_limited.wavelength, flux=flux_ext, meta=spec_limited.meta)
-                report.write('Applied dust extintion factor of: ' + str(Ebv) + ' to deredden spectrum\n')
+                report.write('Applied dust extintion factor of: ' + str(Ebv) + ' and model ' + Model.__name__ + ' to deredden spectrum\n')
                 report.write('\n')
 
             fig = plt.figure()
