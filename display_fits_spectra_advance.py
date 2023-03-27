@@ -534,10 +534,10 @@ def main(argv):
             ax3.set_ylabel('')
             ax4.set_ylabel('')
             
-            ax1.plot(spec_normalized.spectral_axis, spec_normalized.flux)
-            ax2.plot(spec_normalized.spectral_axis, spec_normalized.flux)
-            ax3.plot(spec_normalized.spectral_axis, spec_normalized.flux)
-            ax4.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+            ax1.plot(spec_flux.spectral_axis, spec_flux.flux)
+            ax2.plot(spec_flux.spectral_axis, spec_flux.flux)
+            ax3.plot(spec_flux.spectral_axis, spec_flux.flux)
+            ax4.plot(spec_flux.spectral_axis, spec_flux.flux)
             
             if debug:
                 report.write('Found lines (noise region uncertainty factor 1):' + '\n')
