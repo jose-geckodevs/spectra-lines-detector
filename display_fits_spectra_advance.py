@@ -212,8 +212,8 @@ def main(argv):
                 data = pd.read_csv(filename)
                 meta = {}
                 meta['header'] = {}
-                meta['header']['NAXIS1'] = len(data.wavelength)
-                meta['header']['CRVAL1'] = data.wavelength[0]
+                meta['header']['NAXIS1'] = len(data[0])
+                meta['header']['CRVAL1'] = data[1]
                 spec_original = Spectrum1D(spectral_axis=np.array(data.wavelength) * u.AA, flux=np.array(data.flux) * u.Jy, meta=meta)
 
             else:
