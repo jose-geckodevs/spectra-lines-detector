@@ -30,8 +30,8 @@ Only one flag:
 `python3 display_fits_spectra_advance.py --only-one --path ./V5114Sgr`
 
 Dust extintion:
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv 0.6 --rv 3.1 --model F99`
 `python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv 0.6 --rv 3.1 --model CCM89`
+`python3 display_fits_spectra_advance.py --datPath 0318f.dat --datSeparator "  " --ebv 0.6 --rv 3.1 --model CCM89`
 
 Wavelenght limits
 `--wavelenghtLowerLimit 4000`
