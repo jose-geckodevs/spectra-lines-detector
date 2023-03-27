@@ -16,10 +16,12 @@ Install with:
 `pip install matplotlib`
 `pip install tabulate`
 `pip install dust_extinction`
+`pip install pandas`
 
 ## Script
 Run with:
 `python3 display_fits_spectra_advance.py --path ./V5114Sgr`
+`python3 display_fits_spectra_advance.py --dat 0318f.dat`
 
 Adding debug flag:
 `python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr`

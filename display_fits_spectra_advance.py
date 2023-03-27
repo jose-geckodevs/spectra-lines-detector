@@ -21,6 +21,7 @@ import numpy as np
 import copy, os, sys, getopt, warnings
 from tabulate import tabulate
 from datetime import datetime
+import pandas as pd
 
 def limit_spectra_array(_low: int, _up: int, _spectrum: Spectrum1D):
     _foundLowerIndex = 0
@@ -72,7 +73,8 @@ def print_help():
     print('display_fits_spectra_advance.py')
     print('         --debug')
     print('         --only-one')
-    print('         --path <include path for spectra>')
+    print('         --path <include path for spectra folder>')
+    print('         --dat <include path for data file spectra>')
     print('         --ebv <Ebv dust extintion value>')
     print('         --rv <Rv dust extintion value>')
     print('         --model <dust extintion model>')
@@ -86,6 +88,7 @@ def main(argv):
     plt.style.use(astropy_mpl_style)
     
     path = './'
+    datFile = ''
     debug = False
     onlyOne = False
     
@@ -105,7 +108,7 @@ def main(argv):
     inputParams = ''
 
     try:
-        opts, args = getopt.getopt(argv,'hp:d',['help','path=','debug','only-one','ebv=','rv=','model=',
+        opts, args = getopt.getopt(argv,'hp:d',['help','path=','dat=','debug','only-one','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='])
@@ -121,6 +124,8 @@ def main(argv):
             sys.exit()
         elif opt in ('-p', '--path'):
             path = arg + '/'
+        elif opt in ('--dat'):
+            datFile = arg
         elif opt in ('-d', '--debug'):
             debug = True
         elif opt in ('--only-one'):
@@ -164,20 +169,25 @@ def main(argv):
         startTime = datetime.now()
         print('Start running at ' + startTime.strftime('%H:%M:%S'))
 
-        # Sort FITs by date in header
-        listFITS = []
-        for filename in os.listdir(path):
-            if not filename.endswith('.fits'):
-                continue
-            spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
-            listFITS.append([filename, spec.meta['header']['DATE-OBS']])
-        
-        if (len(listFITS) <= 0):
-            print('No FITs found on folder ' + path)
-            sys.exit()
-        
-        sortedFITS = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
-        sortedFDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
+        if (datFile != ''):
+            # Single dat file analysis
+            sortedFITS = [datFile]
+            sortedFDates = ['']
+        else:
+            # Sort FITs by date in header
+            listFITS = []
+            for filename in os.listdir(path):
+                if not filename.endswith('.fits'):
+                    continue
+                spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
+                listFITS.append([filename, spec.meta['header']['DATE-OBS']])
+            
+            if (len(listFITS) <= 0):
+                print('No FITs found on folder ' + path)
+                sys.exit()
+            
+            sortedFITS = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
+            sortedFDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
 
         csv = open(path + 'lines_measurements' + inputParams + '.csv', 'w')
         csv.write('Spectra file;')
@@ -189,33 +199,43 @@ def main(argv):
 
         counter = 0
         for filename in sortedFITS:
-            if not filename.endswith('.fits'):
+            if not filename.endswith('.fits') and not filename.endswith('.dat'):
                 continue
             
             report = open(path + filename + '.txt', 'w')
             report.write('Filename: ' + filename + '\n')
 
             csv.write(filename + ';')
-
-            # Read FITS
-            hdul = fits.open(path + filename, mode='readonly', memmap = True)
-            if debug:
-                report.write(tabulate(hdul.info(False)) + '\n')
-                report.write('\n')
             
-            # Read the spectrum
-            redshift = None # set scalar value
-            spec_original = Spectrum1D.read(path + filename, format='wcs1d-fits', redshift=redshift)
-            
-            if debug:
-                report.write(repr(spec_original.meta['header']) + '\n')
-                report.write('\n')
+            if filename.endswith('.dat'):
+                # Read the spectrum from dat file
+                data = pd.read_csv(filename)
+                meta = {}
+                meta['header'] = {}
+                meta['header']['NAXIS1'] = len(data.wavelength)
+                meta['header']['CRVAL1'] = data.wavelength[0]
+                spec_original = Spectrum1D(spectral_axis=np.array(data.wavelength) * u.AA, flux=np.array(data.flux) * u.Jy, meta=meta)
 
-            report.write('Date observation: ' + spec_original.meta['header']['DATE-OBS'] + '\n')
-            report.write('Exposure time: ' + str(spec_original.meta['header']['EXPTIME']) + '\n')
-            report.write('Telescope: ' + spec_original.meta['header']['TELESCOP'] + '\n')
-            report.write('Instrument: ' + spec_original.meta['header']['INSTRUME'] + '\n')
-            report.write('Object: ' + spec_original.meta['header']['OBJECT'] + '\n')
+            else:
+                # Read FITS
+                hdul = fits.open(path + filename, mode='readonly', memmap = True)
+                if debug:
+                    report.write(tabulate(hdul.info(False)) + '\n')
+                    report.write('\n')
+                hdul.close()
+
+                # Read the spectrum
+                spec_original = Spectrum1D.read(path + filename, format='wcs1d-fits')
+                
+                if debug:
+                    report.write(repr(spec_original.meta['header']) + '\n')
+                    report.write('\n')
+
+                report.write('Date observation: ' + spec_original.meta['header']['DATE-OBS'] + '\n')
+                report.write('Exposure time: ' + str(spec_original.meta['header']['EXPTIME']) + '\n')
+                report.write('Telescope: ' + spec_original.meta['header']['TELESCOP'] + '\n')
+                report.write('Instrument: ' + spec_original.meta['header']['INSTRUME'] + '\n')
+                report.write('Object: ' + spec_original.meta['header']['OBJECT'] + '\n')
 
             # Limit the spectrum between the lower and upper range
             flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec_original)
@@ -579,7 +599,6 @@ def main(argv):
             # Plot figure and close
             plt.savefig(path + filename + '.png')
             plt.clf()
-            hdul.close()
             report.close()
 
             counter = counter + 1
