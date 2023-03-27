@@ -74,7 +74,8 @@ def print_help():
     print('         --debug')
     print('         --only-one')
     print('         --path <include path for spectra folder>')
-    print('         --dat <include path for data file spectra>')
+    print('         --datPath <include path for data file spectra>')
+    print('         --datSeparator <separator for data file spectra>')
     print('         --ebv <Ebv dust extintion value>')
     print('         --rv <Rv dust extintion value>')
     print('         --model <dust extintion model>')
@@ -88,7 +89,8 @@ def main(argv):
     plt.style.use(astropy_mpl_style)
     
     path = './'
-    datFile = ''
+    datPath = ''
+    datSeparator = '  '
     debug = False
     onlyOne = False
     
@@ -108,7 +110,7 @@ def main(argv):
     inputParams = ''
 
     try:
-        opts, args = getopt.getopt(argv,'hp:d',['help','path=','dat=','debug','only-one','ebv=','rv=','model=',
+        opts, args = getopt.getopt(argv,'hp:d',['help','path=','datPath=','datSeparator=','debug','only-one','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='])
@@ -116,7 +118,7 @@ def main(argv):
         print_help()
         sys.exit(2)
     for opt, arg in opts:
-        if opt not in ('-p', '--path'):
+        if opt not in ('-p', '--path', '--datSeparator'):
             inputParams += opt + arg
 
         if opt in ('-h', '--help'):
@@ -124,8 +126,10 @@ def main(argv):
             sys.exit()
         elif opt in ('-p', '--path'):
             path = arg + '/'
-        elif opt in ('--dat'):
-            datFile = arg
+        elif opt in ('--datPath'):
+            datPath = arg
+        elif opt in ('--datSeparator'):
+            datSeparator = arg
         elif opt in ('-d', '--debug'):
             debug = True
         elif opt in ('--only-one'):
@@ -169,9 +173,9 @@ def main(argv):
         startTime = datetime.now()
         print('Start running at ' + startTime.strftime('%H:%M:%S'))
 
-        if (datFile != ''):
+        if (datPath != ''):
             # Single dat file analysis
-            sortedFITS = [datFile]
+            sortedFITS = [datPath]
             sortedFDates = ['']
         else:
             # Sort FITs by date in header
@@ -209,12 +213,12 @@ def main(argv):
             
             if filename.endswith('.dat'):
                 # Read the spectrum from dat file
-                data = pd.read_csv(filename)
+                data = pd.read_csv(filename, delimiter=datSeparator, names=['wavelength','flux'], header=None)
                 meta = {}
                 meta['header'] = {}
-                meta['header']['NAXIS1'] = len(data[0])
-                meta['header']['CRVAL1'] = data[1]
-                spec_original = Spectrum1D(spectral_axis=np.array(data.wavelength) * u.AA, flux=np.array(data.flux) * u.Jy, meta=meta)
+                meta['header']['NAXIS1'] = len(data.wavelength)
+                meta['header']['CRVAL1'] = data.wavelength[0]
+                spec_original = Spectrum1D(spectral_axis=np.array(data.wavelength) * u.AA, flux=np.array(data.flux) * (u.erg / u.Angstrom / u.s / u.cm / u.cm), meta=meta)
 
             else:
                 # Read FITS
