@@ -74,7 +74,7 @@ def print_help():
     print('         --debug')
     print('         --only-one')
     print('         --path <include path for spectra folder>')
-    print('         --datPath <include path for data file spectra>')
+    print('         --datPath <include path for spectra folder>')
     print('         --datSeparator <separator for data file spectra>')
     print('         --ebv <Ebv dust extintion value>')
     print('         --rv <Rv dust extintion value>')
@@ -118,7 +118,7 @@ def main(argv):
         print_help()
         sys.exit(2)
     for opt, arg in opts:
-        if opt not in ('-p', '--path', '--datSeparator'):
+        if opt not in ('-p', '--path', '--datPath', '--datSeparator'):
             inputParams += opt + arg
 
         if opt in ('-h', '--help'):
@@ -127,7 +127,7 @@ def main(argv):
         elif opt in ('-p', '--path'):
             path = arg + '/'
         elif opt in ('--datPath'):
-            datPath = arg
+            datPath = arg + '/'
         elif opt in ('--datSeparator'):
             datSeparator = arg
         elif opt in ('-d', '--debug'):
@@ -164,6 +164,10 @@ def main(argv):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         
+        HalphaEvolution = []
+        HbetaEvolution = []
+        HgammaEvolution = []
+        HdeltaEvolution = []
         Halpha_Hbeta = []
         Hgamma_Hbeta = []
         Hdelta_Hbeta = []
@@ -174,9 +178,23 @@ def main(argv):
         print('Start running at ' + startTime.strftime('%H:%M:%S'))
 
         if (datPath != ''):
-            # Single dat file analysis
-            sortedFITS = [datPath]
-            sortedFDates = ['']
+            # Sort FITs by filename
+            path = datPath
+            sortedFiles = []
+            sortedDates = []
+            for filename in os.listdir(path):
+                if not filename.endswith('.dat'):
+                    continue
+                sortedFiles.append(filename)
+                sortedDates.append(filename.replace('.dat', ''))
+            
+            if (len(sortedDates) <= 0):
+                print('No DATs found on folder ' + path)
+                sys.exit()
+
+            sortedFiles = sorted(sortedFiles)
+            sortedDates = sorted(sortedDates)
+
         else:
             # Sort FITs by date in header
             listFITS = []
@@ -190,8 +208,8 @@ def main(argv):
                 print('No FITs found on folder ' + path)
                 sys.exit()
             
-            sortedFITS = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
-            sortedFDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
+            sortedFiles = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
+            sortedDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
 
         csv = open(path + 'lines_measurements' + inputParams + '.csv', 'w')
         csv.write('Spectra file;')
@@ -202,7 +220,7 @@ def main(argv):
         csv.write('\n')
 
         counter = 0
-        for filename in sortedFITS:
+        for filename in sortedFiles:
             if not filename.endswith('.fits') and not filename.endswith('.dat'):
                 continue
             
@@ -213,7 +231,7 @@ def main(argv):
             
             if filename.endswith('.dat'):
                 # Read the spectrum from dat file
-                data = pd.read_csv(filename, delimiter=datSeparator, names=['wavelength','flux'], header=None)
+                data = pd.read_csv(path + filename, delimiter=datSeparator, names=['wavelength','flux'], header=None)
                 meta = {}
                 meta['header'] = {}
                 meta['header']['NAXIS1'] = len(data.wavelength)
@@ -594,10 +612,14 @@ def main(argv):
             csv.write('\n')
             
             # Calculate lines evolution
+            HalphaEvolution.append(fluxData[0].value)
+            HbetaEvolution.append(fluxData[1].value)
+            HgammaEvolution.append(fluxData[2].value)
+            HdeltaEvolution.append(fluxData[3].value)
             Halpha_Hbeta.append(fluxData[0] / fluxData[1])
             Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
             Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
-            evolutionPlane.append(sortedFDates[count])
+            evolutionPlane.append(sortedDates[count])
             count += 1
             
             # Plot figure and close
@@ -614,13 +636,24 @@ def main(argv):
             
         if (counter > 1):
             fig, ax = plt.subplots()
+            ax.plot(evolutionPlane, HalphaEvolution, label = HalphaLabel)
+            ax.plot(evolutionPlane, HbetaEvolution, label = HbetaLabel)
+            ax.plot(evolutionPlane, HgammaEvolution, label = HgammaLabel)
+            ax.plot(evolutionPlane, HdeltaEvolution, label = HdeltaLabel)
+            ax.set(xlabel = 'Date', ylabel = 'Flux')
+            fig.autofmt_xdate()
+            plt.legend()
+            plt.savefig(path + 'lines_flux_evolution' + inputParams + '.png')
+            plt.clf()
+
+            fig, ax = plt.subplots()
             ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
-            ax.set(xlabel = 'Date', ylabel = 'Flux ' + HbetaLabel + ' factor')
+            ax.set(xlabel = 'Date', ylabel = 'Line ratio')
             fig.autofmt_xdate()
             plt.legend()
-            plt.savefig(path + 'lines_evolution' + inputParams + '.png')
+            plt.savefig(path + 'lines_ratio_evolution_' + inputParams + '.png')
             plt.clf()
 
         csv.close()

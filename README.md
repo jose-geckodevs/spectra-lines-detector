@@ -20,18 +20,18 @@ Install with:
 
 ## Script
 Run with:
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr`
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits`
 `python3 display_fits_spectra_advance.py --datPath 0318f.dat --datSeparator "  "`
 
 Adding debug flag:
-`python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr`
+`python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr/fits`
 
 Only one flag:
-`python3 display_fits_spectra_advance.py --only-one --path ./V5114Sgr`
+`python3 display_fits_spectra_advance.py --only-one --path ./V5114Sgr/fits`
 
 Dust extintion:
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr --ebv 0.6 --rv 3.1 --model CCM89`
-`python3 display_fits_spectra_advance.py --datPath 0318f.dat --datSeparator "  " --ebv 0.6 --rv 3.1 --model CCM89`
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits --ebv 0.6 --rv 3.2 --model CCM89`
+`python3 display_fits_spectra_advance.py --datPath ./V5114Sgr/dat --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89`
 
 Wavelenght limits
 `--wavelenghtLowerLimit 4000`
