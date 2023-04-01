@@ -32,6 +32,8 @@ def limit_spectra_array(_low: int, _up: int, _spectrum: Spectrum1D):
         if wavelength.value >= _up and not _foundUpperIndex:
             _foundUpperIndex = index
             break
+    if (not _foundUpperIndex):
+        _foundUpperIndex = index
     return _spectrum.flux.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.flux.unit, _spectrum.wavelength.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.wavelength.unit
 
 def reduce_sorted_fits_array_by_filename(item: list):
