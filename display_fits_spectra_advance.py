@@ -306,7 +306,7 @@ def main(argv):
             # Plot initial spectrum
             ax5.plot(spec_limited.wavelength, spec_limited.flux)
             
-            # Try find the continuum without the lines
+            # Try find the lines without the lines initally without the continuum
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
             spec_noise = noise_region_uncertainty(spec, noise_region)
             lines = find_lines_threshold(spec_noise, noise_factor=1)
@@ -403,10 +403,13 @@ def main(argv):
                 includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
                 
             ax6.set_ylabel('Continuum')
+
+            # Try detect the contiuum on a first iteration
             #g1_fit = fit_generic_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
             #g1_fit = fit_continuum(spec, window=includeRegions)
             g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
             #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
+
             y_continuum_fitted = g1_fit(spec.wavelength)
             ax6.plot(spec.wavelength, spec.flux)
             ax6.plot(spec.wavelength, y_continuum_fitted)
@@ -419,9 +422,9 @@ def main(argv):
             ax8.set_ylabel('Flux')
             ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
             
-            # Find now lines by thresholding using the normalised spectrum
+            # Find now lines by thresholding using the flux substracted contiuum spectrum
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
-            spec_noise = noise_region_uncertainty(spec_normalized, noise_region)
+            spec_noise = noise_region_uncertainty(spec_flux, noise_region)
             lines = find_lines_threshold(spec_noise, noise_factor=1)
             numLinesSecondIteration = len(lines)
             
@@ -495,6 +498,7 @@ def main(argv):
                 if (len(includeRegions) <= 0):
                     includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
                     
+                # Try detect the contiuum on a second iteration
                 #g1_fit = fit_generic_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
                 #g1_fit = fit_continuum(spec, window=includeRegions)
                 g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
@@ -512,9 +516,9 @@ def main(argv):
                 ax8.set_ylabel('Flux')
                 ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
                 
-                # Find now lines by thresholding using the normalised spectrum
+                # Find now lines by thresholding using the flux substracted contiuum spectrum
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA) # u.AA for Angstrom
-                spec_noise = noise_region_uncertainty(spec_normalized, noise_region)
+                spec_noise = noise_region_uncertainty(spec_flux, noise_region)
                 lines = find_lines_threshold(spec_noise, noise_factor=1)
                 
             # Try identify Balmer series
