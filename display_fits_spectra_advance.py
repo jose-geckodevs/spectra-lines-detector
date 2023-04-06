@@ -647,6 +647,7 @@ def main(argv):
             ax.plot(evolutionPlane, HgammaEvolution, label = HgammaLabel)
             ax.plot(evolutionPlane, HdeltaEvolution, label = HdeltaLabel)
             ax.set(xlabel = 'Date', ylabel = 'Flux')
+            ax.set_yscale('log')
             fig.autofmt_xdate()
             plt.legend()
             plt.savefig(path + 'lines_flux_evolution' + inputParams + '.png')
