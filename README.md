@@ -21,7 +21,7 @@ Install with:
 ## Script
 Run with:
 `python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits`
-`python3 display_fits_spectra_advance.py --datPath 0318f.dat --datSeparator "  "`
+`python3 display_fits_spectra_advance.py --datPath /V5114Sgr/dat --datSeparator "  "`
 
 Adding debug flag:
 `python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr/fits`
