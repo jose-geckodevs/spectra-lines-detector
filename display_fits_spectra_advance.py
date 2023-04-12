@@ -173,6 +173,10 @@ def main(argv):
         Halpha_Hbeta = []
         Hgamma_Hbeta = []
         Hdelta_Hbeta = []
+        HalphaFWHMEvolution = []
+        HbetaFWHMEvolution = []
+        HgammaFWHMEvolution = []
+        HdeltaFWHMEvolution = []
         evolutionPlane = []
         count = 0
         
@@ -625,6 +629,10 @@ def main(argv):
             Halpha_Hbeta.append(fluxData[0] / fluxData[1])
             Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
             Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
+            HalphaFWHMEvolution.append(fwhmData[0].value)
+            HbetaFWHMEvolution.append(fwhmData[1].value)
+            HgammaFWHMEvolution.append(fwhmData[2].value)
+            HdeltaFWHMEvolution.append(fwhmData[3].value)
             evolutionPlane.append(sortedDates[count])
             count += 1
             
@@ -661,6 +669,18 @@ def main(argv):
             fig.autofmt_xdate()
             plt.legend()
             plt.savefig(path + 'lines_ratio_evolution_' + inputParams + '.png')
+            plt.clf()
+
+            fig, ax = plt.subplots()
+            ax.plot(evolutionPlane, HalphaFWHMEvolution, label = HalphaLabel)
+            ax.plot(evolutionPlane, HbetaFWHMEvolution, label = HbetaLabel)
+            ax.plot(evolutionPlane, HgammaFWHMEvolution, label = HgammaLabel)
+            ax.plot(evolutionPlane, HdeltaFWHMEvolution, label = HdeltaLabel)
+            ax.set(xlabel = 'Date', ylabel = 'FWHM')
+            ax.set_yscale('log')
+            fig.autofmt_xdate()
+            plt.legend()
+            plt.savefig(path + 'lines_fwhm_evolution' + inputParams + '.png')
             plt.clf()
 
         csv.close()
