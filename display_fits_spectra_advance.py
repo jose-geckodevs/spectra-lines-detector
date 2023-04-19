@@ -1,4 +1,5 @@
 from astropy.io import fits
+from astropy import constants as const
 from astropy.visualization import astropy_mpl_style
 from astropy.table import Table
 from astropy import units as u
@@ -89,7 +90,7 @@ def print_help():
 def main(argv):
     quantity_support() 
     plt.style.use(astropy_mpl_style)
-    
+
     path = './'
     datPath = ''
     datSeparator = '  '
@@ -629,10 +630,10 @@ def main(argv):
             Halpha_Hbeta.append(fluxData[0] / fluxData[1])
             Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
             Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
-            HalphaFWHMEvolution.append(fwhmData[0].value)
-            HbetaFWHMEvolution.append(fwhmData[1].value)
-            HgammaFWHMEvolution.append(fwhmData[2].value)
-            HdeltaFWHMEvolution.append(fwhmData[3].value)
+            HalphaFWHMEvolution.append((fwhmData[0].value / centroidData[0].value) * const.c.to('km/s').value)
+            HbetaFWHMEvolution.append((fwhmData[1].value / centroidData[1].value) * const.c.to('km/s').value)
+            HgammaFWHMEvolution.append((fwhmData[2].value / centroidData[2].value) * const.c.to('km/s').value)
+            HdeltaFWHMEvolution.append((fwhmData[3].value / centroidData[3].value) * const.c.to('km/s').value)
             evolutionPlane.append(sortedDates[count])
             count += 1
             
@@ -648,13 +649,15 @@ def main(argv):
             if (onlyOne):
                 break # Just as test to only process the first spectrum of the folder
             
-        if (counter > 1):
+        if (counter > 0):
             fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
             ax.plot(evolutionPlane, HalphaEvolution, label = HalphaLabel)
             ax.plot(evolutionPlane, HbetaEvolution, label = HbetaLabel)
             ax.plot(evolutionPlane, HgammaEvolution, label = HgammaLabel)
             ax.plot(evolutionPlane, HdeltaEvolution, label = HdeltaLabel)
-            ax.set(xlabel = 'Date', ylabel = 'Flux')
+            ax.set(xlabel = 'Date', ylabel = f"Flux ({(u.erg / u.Angstrom / u.s / u.cm / u.cm).to_string('latex_inline')})")
             ax.set_yscale('log')
             fig.autofmt_xdate()
             plt.legend()
@@ -662,6 +665,8 @@ def main(argv):
             plt.clf()
 
             fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
             ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
@@ -672,11 +677,13 @@ def main(argv):
             plt.clf()
 
             fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
             ax.plot(evolutionPlane, HalphaFWHMEvolution, label = HalphaLabel)
             ax.plot(evolutionPlane, HbetaFWHMEvolution, label = HbetaLabel)
             ax.plot(evolutionPlane, HgammaFWHMEvolution, label = HgammaLabel)
             ax.plot(evolutionPlane, HdeltaFWHMEvolution, label = HdeltaLabel)
-            ax.set(xlabel = 'Date', ylabel = 'FWHM')
+            ax.set(xlabel = 'Date', ylabel = f"FWHM ({(u.kilometer / u.second)})")
             ax.set_yscale('log')
             fig.autofmt_xdate()
             plt.legend()
