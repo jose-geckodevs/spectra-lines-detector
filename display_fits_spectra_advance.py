@@ -51,7 +51,7 @@ def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D):
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
     _centroidData = centroid(_spec_norm, regions = _regions)
 
-    return _fluxData, _fwhmData, _equivalentWidthData, _centroidData
+    return _fluxData, _fwhmData, _equivalentWidthData, _centroidData, _padding
 
 def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
     _padding = 5
@@ -70,7 +70,9 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
     _centroidData = centroid(_spec_norm, regions = _regions)
 
-    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0]
+    if (_padding >= 100):
+        _padding = 95
+    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _padding
 
 def print_help():
     print('display_fits_spectra_advance.py')
@@ -604,6 +606,25 @@ def main(argv):
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
             equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
             centroidData = [haCalculations[3], hbCalculations[3], hgCalculations[3], hdCalculations[3]]
+
+            # Draw padding limits on line calculation
+            if (haCalculations[4] > 50):
+                ax1.set_xlim(Halpha - haCalculations[4] - 10, Halpha + haCalculations[4] + 10)
+            if (hbCalculations[4] > 50):
+                ax2.set_xlim(Hbeta - hbCalculations[4] - 10, Hbeta + hbCalculations[4] + 10)
+            if (hgCalculations[4] > 50):
+                ax3.set_xlim(Hgamma - hgCalculations[4] - 10, Hgamma + hgCalculations[4] + 10)
+            if (hdCalculations[4] > 50):
+                ax4.set_xlim(Hdelta - hdCalculations[4] - 10, Hdelta + hdCalculations[4] + 10)
+
+            ax1.axvline(x=Halpha-haCalculations[4], color='r')
+            ax1.axvline(x=Halpha+haCalculations[4], color='r')
+            ax2.axvline(x=Hbeta-hbCalculations[4], color='r')
+            ax2.axvline(x=Hbeta+hbCalculations[4], color='r')
+            ax3.axvline(x=Hgamma-hgCalculations[4], color='r')
+            ax3.axvline(x=Hgamma+hgCalculations[4], color='r')
+            ax4.axvline(x=Hdelta-hdCalculations[4], color='r')
+            ax4.axvline(x=Hdelta+hdCalculations[4], color='r')
 
             haValues = np.array([HalphaLabel, fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
             hbValues = np.array([HbetaLabel, fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
