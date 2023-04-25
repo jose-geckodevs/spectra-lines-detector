@@ -21,9 +21,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import copy, os, sys, getopt, warnings
 from tabulate import tabulate
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
+from dateutil.parser import parse
 
+def is_date(string, format):
+    try:
+        return bool(datetime.strptime(string, format))
+    except ValueError:
+        return False
+    
 def limit_spectra_array(_low: int, _up: int, _spectrum: Spectrum1D):
     _foundLowerIndex = 0
     _foundUpperIndex = 0
@@ -85,7 +92,8 @@ def print_help():
     print('         --rv <Rv dust extintion value>')
     print('         --model <dust extintion model>')
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
-    print('         --wavelenghtLowerLimit <lower angstrom limit> --wavelenghtUpperLimit <higher angstrom limit>')
+    print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
+    print('         --evolutionlabel <evolution label>')
     print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
     print('If no lines configured, Halpha(4), Hbeta(3), Hgamma(2) and Hdelta(1) will be used')
 
@@ -107,6 +115,7 @@ def main(argv):
     HgammaLabel = 'Hgamma'
     Hdelta = 4102
     HdeltaLabel = 'Hdelta'
+    EvolutionLabel = 'Days after maximum'
     WavelenghtLowerLimit = 4000
     WavelenghtUpperLimit = 7000
     Ebv = 0
@@ -118,7 +127,8 @@ def main(argv):
         opts, args = getopt.getopt(argv,'hp:d',['help','path=','datPath=','datSeparator=','debug','only-one','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
-                                                'l1label=','l2label=','l3label=','l4label='])
+                                                'l1label=','l2label=','l3label=','l4label='
+                                                ,'evolutionlabel='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -161,6 +171,8 @@ def main(argv):
             Halpha = int(arg)
         elif opt in ('--l4label'):
             HalphaLabel = arg
+        elif opt in ('--evolutionlabel'):
+            EvolutionLabel = arg
         elif opt in ('--wavelenghtLowerLimit'):
             WavelenghtLowerLimit = int(arg)
         elif opt in ('--wavelenghtUpperLimit'):
@@ -181,7 +193,7 @@ def main(argv):
         HgammaFWHMEvolution = []
         HdeltaFWHMEvolution = []
         evolutionPlane = []
-        count = 0
+        evolutionPlaneLog = False
         
         startTime = datetime.now()
         print('Start running at ' + startTime.strftime('%H:%M:%S'))
@@ -220,6 +232,14 @@ def main(argv):
             sortedFiles = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
             sortedDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
 
+        # Set evolution graphs to log if number of days
+        if (sortedDates[0].isdigit()):
+            evolutionPlaneLog = True
+        elif (is_date(sortedDates[0], '%Y-%m-%d')):
+            evolutionPlaneLog = True
+        else:
+            evolutionPlaneLog = False
+            
         csv = open(path + 'lines_measurements' + inputParams + '.csv', 'w')
         csv.write('Spectra file;')
         csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
@@ -655,8 +675,16 @@ def main(argv):
             HbetaFWHMEvolution.append((fwhmData[1].value / centroidData[1].value) * const.c.to('km/s').value)
             HgammaFWHMEvolution.append((fwhmData[2].value / centroidData[2].value) * const.c.to('km/s').value)
             HdeltaFWHMEvolution.append((fwhmData[3].value / centroidData[3].value) * const.c.to('km/s').value)
-            evolutionPlane.append(sortedDates[count])
-            count += 1
+
+            if (sortedDates[counter].isdigit()):
+                evolutionPlane.append(int(sortedDates[counter]))
+            elif (is_date(sortedDates[counter], '%Y-%m-%d')):
+                # Get number of days from maximum (first date is day 1)
+                delta = datetime.strptime(sortedDates[counter], '%Y-%m-%d') - datetime.strptime(sortedDates[0], '%Y-%m-%d')
+                evolutionPlane.append(delta.days + 1)
+            else:
+                # Order by string
+                evolutionPlane.append(sortedDates[counter])
             
             # Plot figure and close
             plt.savefig(path + filename + '.png')
@@ -678,9 +706,12 @@ def main(argv):
             ax.plot(evolutionPlane, HbetaEvolution, label = HbetaLabel)
             ax.plot(evolutionPlane, HgammaEvolution, label = HgammaLabel)
             ax.plot(evolutionPlane, HdeltaEvolution, label = HdeltaLabel)
-            ax.set(xlabel = 'Date', ylabel = f"Flux ({(u.erg / u.Angstrom / u.s / u.cm / u.cm).to_string('latex_inline')})")
+            ax.set(xlabel = EvolutionLabel, ylabel = f"Flux ({(u.erg / u.Angstrom / u.s / u.cm / u.cm).to_string('latex_inline')})")
             ax.set_yscale('log')
-            fig.autofmt_xdate()
+            if (evolutionPlaneLog):
+                ax.set_xscale('log')
+            else:
+                fig.autofmt_xdate()
             plt.legend()
             plt.savefig(path + 'lines_flux_evolution' + inputParams + '.png')
             plt.clf()
@@ -691,8 +722,12 @@ def main(argv):
             ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
-            ax.set(xlabel = 'Date', ylabel = 'Line ratio')
-            fig.autofmt_xdate()
+            ax.set(xlabel = EvolutionLabel, ylabel = 'Line ratio')
+            ax.set_yscale('log')
+            if (evolutionPlaneLog):
+                ax.set_xscale('log')
+            else:
+                fig.autofmt_xdate()
             plt.legend()
             plt.savefig(path + 'lines_ratio_evolution_' + inputParams + '.png')
             plt.clf()
@@ -704,9 +739,12 @@ def main(argv):
             ax.plot(evolutionPlane, HbetaFWHMEvolution, label = HbetaLabel)
             ax.plot(evolutionPlane, HgammaFWHMEvolution, label = HgammaLabel)
             ax.plot(evolutionPlane, HdeltaFWHMEvolution, label = HdeltaLabel)
-            ax.set(xlabel = 'Date', ylabel = f"FWHM ({(u.kilometer / u.second)})")
+            ax.set(xlabel = EvolutionLabel, ylabel = f"FWHM ({(u.kilometer / u.second)})")
             ax.set_yscale('log')
-            fig.autofmt_xdate()
+            if (evolutionPlaneLog):
+                ax.set_xscale('log')
+            else:
+                fig.autofmt_xdate()
             plt.legend()
             plt.savefig(path + 'lines_fwhm_evolution' + inputParams + '.png')
             plt.clf()
