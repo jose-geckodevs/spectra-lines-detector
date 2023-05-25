@@ -685,6 +685,10 @@ def main(argv):
             else:
                 # Order by string
                 evolutionPlane.append(sortedDates[counter])
+            
+            # Plot main figure
+            plt.savefig(path + filename + '.png')
+            plt.clf()
 
             # Plot lines average shape overlap
             fig, ax = plt.subplots()
@@ -709,10 +713,8 @@ def main(argv):
             plt.legend()
             plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
             plt.clf()
-            
-            # Plot main figure and close report
-            plt.savefig(path + filename + '.png')
-            plt.clf()
+
+            # Close report
             report.close()
 
             counter = counter + 1
