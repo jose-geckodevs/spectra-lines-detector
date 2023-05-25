@@ -616,7 +616,7 @@ def main(argv):
                 report.write('Found lines (derivative threshold 0.95):' + '\n')
                 report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
-
+            
             # Measure lines finding paddign from amx fwhm
             haCalculations = measure_line_max_fwhm(Halpha, spec_normalized, spec_flux)
             hbCalculations = measure_line_max_fwhm(Hbeta, spec_normalized, spec_flux)
@@ -685,8 +685,32 @@ def main(argv):
             else:
                 # Order by string
                 evolutionPlane.append(sortedDates[counter])
+
+            # Plot lines average shape overlap
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            maxMargin = np.max([haCalculations[4], hbCalculations[4], hgCalculations[4], hdCalculations[4]])
+            speedMargin = 300000 * maxMargin / Halpha
+            ax.set_xlim(-speedMargin, speedMargin)
+            fluxHa, wavelengthHa = limit_spectra_array(Halpha - haCalculations[4], Halpha + haCalculations[4], spec_normalized)
+            fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[4], spec_normalized)
+            fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[4], spec_normalized)
+            fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[4], spec_normalized)
+            maxHalpha = np.max(fluxHa.value)
+            maxHbeta = np.max(fluxHb.value)
+            maxHgamma = np.max(fluxHg.value)
+            maxHdelta = np.max(fluxHd.value)
+            ax.plot(300000 * ((wavelengthHa.value - Halpha) / Halpha), fluxHa.value / maxHalpha, label = HalphaLabel)
+            ax.plot(300000 * ((wavelengthHb.value - Hbeta) / Hbeta), fluxHb.value / maxHbeta, label = HbetaLabel)
+            ax.plot(300000 * ((wavelengthHg.value - Hgamma) / Hgamma), fluxHg.value / maxHgamma, label = HgammaLabel)
+            ax.plot(300000 * ((wavelengthHd.value - Hdelta) / Hdelta), fluxHd.value / maxHdelta, label = HdeltaLabel)
+            ax.set(xlabel = f"{(u.kilometer / u.second)}", ylabel='Normalised')
+            plt.legend()
+            plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
+            plt.clf()
             
-            # Plot figure and close
+            # Plot main figure and close report
             plt.savefig(path + filename + '.png')
             plt.clf()
             report.close()
@@ -729,7 +753,7 @@ def main(argv):
             else:
                 fig.autofmt_xdate()
             plt.legend()
-            plt.savefig(path + 'lines_ratio_evolution_' + inputParams + '.png')
+            plt.savefig(path + 'lines_ratio_evolution' + inputParams + '.png')
             plt.clf()
 
             fig, ax = plt.subplots()
