@@ -25,6 +25,7 @@ from datetime import datetime, date
 import pandas as pd
 from dateutil.parser import parse
 import math
+import statistics
 
 def find_nearest_index(array, value):
     idx = np.searchsorted(array, value, side="left")
@@ -77,9 +78,7 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
         _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
         _fwhmData = fwhm(_spec_norm, regions = _regions)
         _indexLeftFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _padding)
-        print('left flux', _spec_flux.flux[_indexLeftFlux])
         _indexRightFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _padding)
-        print('right flux', _spec_flux.flux[_indexRightFlux])
         if ((_spec_flux.flux[_indexLeftFlux] < 0 or _spec_flux.flux[_indexRightFlux] < 0) and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
         _previousFwhm = _fwhmData[0]
@@ -103,7 +102,6 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
         _regions = [SpectralRegion((_center - _leftPadding) * u.AA, _center * u.AA )]
         _fwhmData = fwhm(_spec_norm, regions = _regions)
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
-        print('left flux', _spec_flux.flux[_indexFlux])
         if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
         _previousFwhm = _fwhmData[0]
@@ -113,7 +111,6 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
         _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
         _fwhmData = fwhm(_spec_norm, regions = _regions)
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
-        print('right flux', _spec_flux.flux[_indexFlux])
         if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
         _previousFwhm = _fwhmData[0]
@@ -127,8 +124,85 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
         _leftPadding = 95
     if (_rightPadding >= 100):
         _rightPadding = 95
-    print(_center, _leftPadding, _rightPadding)
     return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
+
+def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+    _leftPadding = 1
+    _rightPadding = 1
+    _regions = []
+
+    histrogram, bin_edges = np.histogram(_spec_flux.flux.value)
+    #print(histrogram)
+    #print('bin_edges', bin_edges)
+
+    mean = statistics.mean(_spec_flux.flux.value)
+    median = statistics.median(_spec_flux.flux.value)
+    mode = statistics.mode(_spec_flux.flux.value)
+    sd = statistics.stdev(_spec_flux.flux.value)
+    #print('mean', median)
+    #print('sd', sd * 0.5)
+
+    #plt.clf()
+    #plt.hist(_spec_flux.flux.value, bins='auto')  # arguments are passed to np.histogram
+    #plt.title("Histogram with 'auto' bins")
+    ##plt.axvline(mean, linestyle='dashed')
+    #plt.axvline(median, color='k', linestyle='dashed')
+    #plt.axvline(median + sd * 0.5, color='y', linestyle='dashed')
+    #plt.axvline(median - sd * 0.5, color='y', linestyle='dashed')
+    ##plt.axvline(mode, linestyle='dashed')
+    #plt.show()
+    #exit()
+
+    min_continuum = median - sd * 0.5
+    max_continuum = median + sd * 0.5
+
+    #min_continuum = False
+    #max_continuum = False
+    #for index, edge in enumerate(bin_edges):
+    #    if (min_continuum == False and edge > 0):
+    #        max_continuum = edge
+    #        min_continuum = bin_edges[index-1]
+    print('continuum range', min_continuum, max_continuum)
+
+    _count_pass_continuum = 0
+    while(_leftPadding < 100):
+        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
+        #print('left flux', _spec_flux.flux[_indexFlux])
+        _flux = _spec_flux.flux[_indexFlux].value
+        if (_flux <= max_continuum and _flux >= min_continuum):
+            _count_pass_continuum = _count_pass_continuum + 1
+            if (_count_pass_continuum > 2):
+                break
+        else:
+            _count_pass_continuum = 0
+        _leftPadding += 1
+
+    _count_pass_continuum = 0
+    while(_rightPadding < 100):
+        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
+        #print('right flux', _spec_flux.flux[_indexFlux])
+        _flux = _spec_flux.flux[_indexFlux].value
+        if (_flux <= max_continuum and _flux >= min_continuum):
+            _count_pass_continuum = _count_pass_continuum + 1
+            if (_count_pass_continuum > 2):
+                break
+        else:
+            _count_pass_continuum = 0
+        _rightPadding += 1
+
+    if (_leftPadding >= 100):
+        _leftPadding = 99
+    if (_rightPadding >= 100):
+        _rightPadding = 99
+    _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
+
+    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fluxData = line_flux(_spec_flux, regions = _regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+    _centroidData = centroid(_spec_norm, regions = _regions)
+
+    print(_center, _leftPadding, _rightPadding)
+    return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
 def print_help():
     print('display_fits_spectra_advance.py')
@@ -667,10 +741,10 @@ def main(argv):
                 report.write('\n')
             
             # Measure lines finding paddign from amx fwhm
-            haCalculations = measure_line_max_fwhm_asimetric(Halpha, spec_normalized, spec_flux)
-            hbCalculations = measure_line_max_fwhm_asimetric(Hbeta, spec_normalized, spec_flux)
-            hgCalculations = measure_line_max_fwhm_asimetric(Hgamma, spec_normalized, spec_flux)
-            hdCalculations = measure_line_max_fwhm_asimetric(Hdelta, spec_normalized, spec_flux)
+            haCalculations = measure_line_continuum_asimetric(Halpha, spec_normalized, spec_flux)
+            hbCalculations = measure_line_continuum_asimetric(Hbeta, spec_normalized, spec_flux)
+            hgCalculations = measure_line_continuum_asimetric(Hgamma, spec_normalized, spec_flux)
+            hdCalculations = measure_line_continuum_asimetric(Hdelta, spec_normalized, spec_flux)
             fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
             equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
