@@ -24,7 +24,15 @@ from tabulate import tabulate
 from datetime import datetime, date
 import pandas as pd
 from dateutil.parser import parse
+import math
 
+def find_nearest_index(array, value):
+    idx = np.searchsorted(array, value, side="left")
+    if idx > 0 and (idx == len(array) or math.fabs(value - array[idx-1]) < math.fabs(value - array[idx])):
+        return idx-1
+    else:
+        return idx
+    
 def is_date(string, format):
     try:
         return bool(datetime.strptime(string, format))
@@ -68,7 +76,11 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
     while(_padding < 100):
         _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
         _fwhmData = fwhm(_spec_norm, regions = _regions)
-        if (round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
+        _indexLeftFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _padding)
+        print('left flux', _spec_flux.flux[_indexLeftFlux])
+        _indexRightFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _padding)
+        print('right flux', _spec_flux.flux[_indexRightFlux])
+        if ((_spec_flux.flux[_indexLeftFlux] < 0 or _spec_flux.flux[_indexRightFlux] < 0) and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
         _previousFwhm = _fwhmData[0]
         _padding += 5
@@ -79,7 +91,44 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
 
     if (_padding >= 100):
         _padding = 95
-    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _padding
+    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _padding, _padding
+
+def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+    _leftPadding = 5
+    _rightPadding = 5
+    _precision = 2
+    _previousFwhm = u.Quantity(0)
+    _regions = []
+    while(_leftPadding < 100):
+        _regions = [SpectralRegion((_center - _leftPadding) * u.AA, _center * u.AA )]
+        _fwhmData = fwhm(_spec_norm, regions = _regions)
+        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
+        print('left flux', _spec_flux.flux[_indexFlux])
+        if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
+            break
+        _previousFwhm = _fwhmData[0]
+        _leftPadding += 5
+
+    while(_rightPadding < 100):
+        _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
+        _fwhmData = fwhm(_spec_norm, regions = _regions)
+        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
+        print('right flux', _spec_flux.flux[_indexFlux])
+        if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
+            break
+        _previousFwhm = _fwhmData[0]
+        _rightPadding += 5
+
+    _fluxData = line_flux(_spec_flux, regions = _regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+    _centroidData = centroid(_spec_norm, regions = _regions)
+
+    if (_leftPadding >= 100):
+        _leftPadding = 95
+    if (_rightPadding >= 100):
+        _rightPadding = 95
+    print(_center, _leftPadding, _rightPadding)
+    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
 def print_help():
     print('display_fits_spectra_advance.py')
@@ -618,33 +667,33 @@ def main(argv):
                 report.write('\n')
             
             # Measure lines finding paddign from amx fwhm
-            haCalculations = measure_line_max_fwhm(Halpha, spec_normalized, spec_flux)
-            hbCalculations = measure_line_max_fwhm(Hbeta, spec_normalized, spec_flux)
-            hgCalculations = measure_line_max_fwhm(Hgamma, spec_normalized, spec_flux)
-            hdCalculations = measure_line_max_fwhm(Hdelta, spec_normalized, spec_flux)
+            haCalculations = measure_line_max_fwhm_asimetric(Halpha, spec_normalized, spec_flux)
+            hbCalculations = measure_line_max_fwhm_asimetric(Hbeta, spec_normalized, spec_flux)
+            hgCalculations = measure_line_max_fwhm_asimetric(Hgamma, spec_normalized, spec_flux)
+            hdCalculations = measure_line_max_fwhm_asimetric(Hdelta, spec_normalized, spec_flux)
             fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
             equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
             centroidData = [haCalculations[3], hbCalculations[3], hgCalculations[3], hdCalculations[3]]
 
             # Draw padding limits on line calculation
-            if (haCalculations[4] > 50):
-                ax1.set_xlim(Halpha - haCalculations[4] - 10, Halpha + haCalculations[4] + 10)
-            if (hbCalculations[4] > 50):
-                ax2.set_xlim(Hbeta - hbCalculations[4] - 10, Hbeta + hbCalculations[4] + 10)
-            if (hgCalculations[4] > 50):
-                ax3.set_xlim(Hgamma - hgCalculations[4] - 10, Hgamma + hgCalculations[4] + 10)
-            if (hdCalculations[4] > 50):
-                ax4.set_xlim(Hdelta - hdCalculations[4] - 10, Hdelta + hdCalculations[4] + 10)
+            if (haCalculations[4] > 50 or haCalculations[5] > 50):
+                ax1.set_xlim(Halpha - haCalculations[4] - 10, Halpha + haCalculations[5] + 10)
+            if (hbCalculations[4] > 50 or hbCalculations[5] > 50):
+                ax2.set_xlim(Hbeta - hbCalculations[4] - 10, Hbeta + hbCalculations[5] + 10)
+            if (hgCalculations[4] > 50 or hgCalculations[5] > 50):
+                ax3.set_xlim(Hgamma - hgCalculations[4] - 10, Hgamma + hgCalculations[5] + 10)
+            if (hdCalculations[4] > 50 or hdCalculations[5] > 50):
+                ax4.set_xlim(Hdelta - hdCalculations[4] - 10, Hdelta + hdCalculations[5] + 10)
 
             ax1.axvline(x=Halpha-haCalculations[4], color='r')
-            ax1.axvline(x=Halpha+haCalculations[4], color='r')
+            ax1.axvline(x=Halpha+haCalculations[5], color='r')
             ax2.axvline(x=Hbeta-hbCalculations[4], color='r')
-            ax2.axvline(x=Hbeta+hbCalculations[4], color='r')
+            ax2.axvline(x=Hbeta+hbCalculations[5], color='r')
             ax3.axvline(x=Hgamma-hgCalculations[4], color='r')
-            ax3.axvline(x=Hgamma+hgCalculations[4], color='r')
+            ax3.axvline(x=Hgamma+hgCalculations[5], color='r')
             ax4.axvline(x=Hdelta-hdCalculations[4], color='r')
-            ax4.axvline(x=Hdelta+hdCalculations[4], color='r')
+            ax4.axvline(x=Hdelta+hdCalculations[5], color='r')
 
             haValues = np.array([HalphaLabel, fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
             hbValues = np.array([HbetaLabel, fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
@@ -694,13 +743,13 @@ def main(argv):
             fig, ax = plt.subplots()
             fig.set_figwidth(10)
             fig.set_figheight(7)
-            maxMargin = np.max([haCalculations[4], hbCalculations[4], hgCalculations[4], hdCalculations[4]])
+            maxMargin = np.max([haCalculations[4], haCalculations[5], hbCalculations[4], hbCalculations[5], hgCalculations[4], hgCalculations[5], hdCalculations[4], hdCalculations[5]])
             speedMargin = 300000 * maxMargin / Halpha
             ax.set_xlim(-speedMargin, speedMargin)
-            fluxHa, wavelengthHa = limit_spectra_array(Halpha - haCalculations[4], Halpha + haCalculations[4], spec_normalized)
-            fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[4], spec_normalized)
-            fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[4], spec_normalized)
-            fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[4], spec_normalized)
+            fluxHa, wavelengthHa = limit_spectra_array(Halpha - haCalculations[4], Halpha + haCalculations[5], spec_normalized)
+            fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], spec_normalized)
+            fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], spec_normalized)
+            fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], spec_normalized)
             maxHalpha = np.max(fluxHa.value)
             maxHbeta = np.max(fluxHb.value)
             maxHgamma = np.max(fluxHg.value)
