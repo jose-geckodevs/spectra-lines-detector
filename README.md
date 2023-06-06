@@ -42,6 +42,8 @@ Advanced parameters:
 `--l2centroid 4341 --l2label Hgamma`
 `--l3centroid 4861 --l3label Hbeta`
 `--l4centroid 6563 --l4label Halpha`
+`--angstromIncrement 5`
+`--histrogramStDevPercent 0.5`
 
 ## OSX
 Download pip:

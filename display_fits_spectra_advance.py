@@ -60,6 +60,7 @@ def reduce_sorted_fits_array_by_date(item: list):
     return item[1]
 
 def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D):
+    """Deprecated"""
     _padding = 50
     _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
     _fluxData = line_flux(_spec_norm, regions = _regions)
@@ -70,6 +71,7 @@ def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D):
     return _fluxData, _fwhmData, _equivalentWidthData, _centroidData, _padding
 
 def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+    """Deprecated"""
     _padding = 5
     _precision = 2
     _previousFwhm = u.Quantity(0)
@@ -93,6 +95,7 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
     return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _padding, _padding
 
 def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
+    """Deprecated"""
     _leftPadding = 5
     _rightPadding = 5
     _precision = 2
@@ -126,48 +129,19 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
         _rightPadding = 95
     return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
-def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
-    _leftPadding = 1
-    _rightPadding = 1
+def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
+    _leftPadding = _angstromIncrement
+    _rightPadding = _angstromIncrement
     _regions = []
 
-    histrogram, bin_edges = np.histogram(_spec_flux.flux.value)
-    #print(histrogram)
-    #print('bin_edges', bin_edges)
-
-    mean = statistics.mean(_spec_flux.flux.value)
     median = statistics.median(_spec_flux.flux.value)
-    mode = statistics.mode(_spec_flux.flux.value)
     sd = statistics.stdev(_spec_flux.flux.value)
-    #print('mean', median)
-    #print('sd', sd * 0.5)
-
-    #plt.clf()
-    #plt.hist(_spec_flux.flux.value, bins='auto')  # arguments are passed to np.histogram
-    #plt.title("Histogram with 'auto' bins")
-    ##plt.axvline(mean, linestyle='dashed')
-    #plt.axvline(median, color='k', linestyle='dashed')
-    #plt.axvline(median + sd * 0.5, color='y', linestyle='dashed')
-    #plt.axvline(median - sd * 0.5, color='y', linestyle='dashed')
-    ##plt.axvline(mode, linestyle='dashed')
-    #plt.show()
-    #exit()
-
-    min_continuum = median - sd * 0.5
-    max_continuum = median + sd * 0.5
-
-    #min_continuum = False
-    #max_continuum = False
-    #for index, edge in enumerate(bin_edges):
-    #    if (min_continuum == False and edge > 0):
-    #        max_continuum = edge
-    #        min_continuum = bin_edges[index-1]
-    print('continuum range', min_continuum, max_continuum)
+    min_continuum = median - sd * _histogramStDevPercent
+    max_continuum = median + sd * _histogramStDevPercent
 
     _count_pass_continuum = 0
     while(_leftPadding < 100):
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
-        #print('left flux', _spec_flux.flux[_indexFlux])
         _flux = _spec_flux.flux[_indexFlux].value
         if (_flux <= max_continuum and _flux >= min_continuum):
             _count_pass_continuum = _count_pass_continuum + 1
@@ -180,7 +154,6 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
     _count_pass_continuum = 0
     while(_rightPadding < 100):
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
-        #print('right flux', _spec_flux.flux[_indexFlux])
         _flux = _spec_flux.flux[_indexFlux].value
         if (_flux <= max_continuum and _flux >= min_continuum):
             _count_pass_continuum = _count_pass_continuum + 1
@@ -191,9 +164,9 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
         _rightPadding += 1
 
     if (_leftPadding >= 100):
-        _leftPadding = 99
+        _leftPadding = 100 - _angstromIncrement
     if (_rightPadding >= 100):
-        _rightPadding = 99
+        _rightPadding = 100 - _angstromIncrement
     _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
 
     _fwhmData = fwhm(_spec_norm, regions = _regions)
@@ -201,7 +174,8 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
     _centroidData = centroid(_spec_norm, regions = _regions)
 
-    print(_center, _leftPadding, _rightPadding)
+    # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
+
     return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
 def print_help():
@@ -214,6 +188,8 @@ def print_help():
     print('         --ebv <Ebv dust extintion value>')
     print('         --rv <Rv dust extintion value>')
     print('         --model <dust extintion model>')
+    print('         --angstromIncrement <int value to increment when finding lines continuum>')
+    print('         --histogramStDevPercent <standard deviation from spectrum histogram to use when finding lines continuum>')
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
     print('         --evolutionlabel <evolution label>')
@@ -244,11 +220,14 @@ def main(argv):
     Ebv = 0
     Rv = 3.1
     Model = F99
+    AngstromIncrement = 5
+    HistogramStDevPercent = 0.5
     inputParams = ''
 
     try:
         opts, args = getopt.getopt(argv,'hp:d',['help','path=','datPath=','datSeparator=','debug','only-one','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
+                                                'angstromIncrement=','histogramStDevPercent=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label='
                                                 ,'evolutionlabel='])
@@ -300,6 +279,10 @@ def main(argv):
             WavelenghtLowerLimit = int(arg)
         elif opt in ('--wavelenghtUpperLimit'):
             WavelenghtUpperLimit = int(arg)
+        elif opt in ('--angstromIncrement'):
+            AngstromIncrement = int(arg)
+        elif opt in ('--histogramStDevPercent'):
+            HistogramStDevPercent = float(arg)
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -376,7 +359,7 @@ def main(argv):
             if not filename.endswith('.fits') and not filename.endswith('.dat'):
                 continue
             
-            report = open(path + filename + '.txt', 'w')
+            report = open(path + filename + inputParams + '.txt', 'w')
             report.write('Filename: ' + filename + '\n')
 
             csv.write(filename + ';')
@@ -741,10 +724,10 @@ def main(argv):
                 report.write('\n')
             
             # Measure lines finding paddign from amx fwhm
-            haCalculations = measure_line_continuum_asimetric(Halpha, spec_normalized, spec_flux)
-            hbCalculations = measure_line_continuum_asimetric(Hbeta, spec_normalized, spec_flux)
-            hgCalculations = measure_line_continuum_asimetric(Hgamma, spec_normalized, spec_flux)
-            hdCalculations = measure_line_continuum_asimetric(Hdelta, spec_normalized, spec_flux)
+            haCalculations = measure_line_continuum_asimetric(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            hbCalculations = measure_line_continuum_asimetric(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            hgCalculations = measure_line_continuum_asimetric(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            hdCalculations = measure_line_continuum_asimetric(Hdelta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
             equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
@@ -810,7 +793,7 @@ def main(argv):
                 evolutionPlane.append(sortedDates[counter])
             
             # Plot main figure
-            plt.savefig(path + filename + '.png')
+            plt.savefig(path + filename + inputParams + '.png')
             plt.clf()
 
             # Plot lines average shape overlap
@@ -820,10 +803,10 @@ def main(argv):
             maxMargin = np.max([haCalculations[4], haCalculations[5], hbCalculations[4], hbCalculations[5], hgCalculations[4], hgCalculations[5], hdCalculations[4], hdCalculations[5]])
             speedMargin = 300000 * maxMargin / Halpha
             ax.set_xlim(-speedMargin, speedMargin)
-            fluxHa, wavelengthHa = limit_spectra_array(Halpha - haCalculations[4], Halpha + haCalculations[5], spec_normalized)
-            fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], spec_normalized)
-            fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], spec_normalized)
-            fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], spec_normalized)
+            fluxHa, wavelengthHa = limit_spectra_array(Halpha - haCalculations[4], Halpha + haCalculations[5], spec_flux)
+            fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], spec_flux)
+            fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], spec_flux)
+            fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], spec_flux)
             maxHalpha = np.max(fluxHa.value)
             maxHbeta = np.max(fluxHb.value)
             maxHgamma = np.max(fluxHg.value)
