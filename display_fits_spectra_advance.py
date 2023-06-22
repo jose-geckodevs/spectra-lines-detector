@@ -865,7 +865,6 @@ def main(argv):
             ax.plot(mean_x_axis, mean_y_axis, label = 'Mean', color='m', linestyle='dashed')
             ax.plot(mean_x_axis, median_y_axis, label = 'Median', color='y', linestyle='dashed')
             ax.plot(mean_x_axis, mode_y_axis, label = 'Mode', color='k', linestyle='dashed')
-            ax.plot(mean_x_axis, mode_y_axis, label = 'StDev', color='#eeefff', linestyle='dashed')
 
             plt.legend()
             plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
