@@ -134,8 +134,10 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
     _rightPadding = _angstromIncrement
     _regions = []
 
-    median = statistics.median(_spec_flux.flux.value)
-    sd = statistics.stdev(_spec_flux.flux.value)
+    _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
+
+    median = statistics.median(_flux.value)
+    sd = statistics.stdev(_flux.value)
     min_continuum = median - sd * _histogramStDevPercent
     max_continuum = median + sd * _histogramStDevPercent
 
@@ -222,6 +224,7 @@ def main(argv):
     Model = F99
     AngstromIncrement = 5
     HistogramStDevPercent = 0.5
+    FileSuffix = ''
     inputParams = ''
 
     try:
@@ -229,8 +232,8 @@ def main(argv):
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'angstromIncrement=','histogramStDevPercent=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
-                                                'l1label=','l2label=','l3label=','l4label='
-                                                ,'evolutionlabel='])
+                                                'l1label=','l2label=','l3label=','l4label=',
+                                                'fileSuffix=','evolutionlabel='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -283,6 +286,11 @@ def main(argv):
             AngstromIncrement = int(arg)
         elif opt in ('--histogramStDevPercent'):
             HistogramStDevPercent = float(arg)
+        elif opt in ('--fileSuffix'):
+            FileSuffix = arg
+
+    if (FileSuffix != ''):
+        inputParams = FileSuffix
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
