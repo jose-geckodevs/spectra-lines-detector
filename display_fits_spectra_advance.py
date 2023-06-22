@@ -819,11 +819,54 @@ def main(argv):
             maxHbeta = np.max(fluxHb.value)
             maxHgamma = np.max(fluxHg.value)
             maxHdelta = np.max(fluxHd.value)
-            ax.plot(300000 * ((wavelengthHa.value - Halpha) / Halpha), fluxHa.value / maxHalpha, label = HalphaLabel)
-            ax.plot(300000 * ((wavelengthHb.value - Hbeta) / Hbeta), fluxHb.value / maxHbeta, label = HbetaLabel)
-            ax.plot(300000 * ((wavelengthHg.value - Hgamma) / Hgamma), fluxHg.value / maxHgamma, label = HgammaLabel)
-            ax.plot(300000 * ((wavelengthHd.value - Hdelta) / Hdelta), fluxHd.value / maxHdelta, label = HdeltaLabel)
+            xs = [
+                300000 * ((wavelengthHa.value - Halpha) / Halpha),
+                300000 * ((wavelengthHb.value - Hbeta) / Hbeta),
+                300000 * ((wavelengthHg.value - Hgamma) / Hgamma),
+                300000 * ((wavelengthHd.value - Hdelta) / Hdelta)
+            ]
+            ys = [
+                fluxHa.value / maxHalpha,
+                fluxHb.value / maxHbeta,
+                fluxHg.value / maxHgamma,
+                fluxHd.value / maxHdelta
+            ]
+            ax.plot(xs[0], ys[0], label = HalphaLabel)
+            ax.plot(xs[1], ys[1], label = HbetaLabel)
+            ax.plot(xs[2], ys[2], label = HgammaLabel)
+            ax.plot(xs[3], ys[3], label = HdeltaLabel)
             ax.set(xlabel = f"{(u.kilometer / u.second)}", ylabel='Normalised')
+            
+            #mean_x_axis = [i for i in range(max(xs))]
+            #ys_interp = [np.interp(mean_x_axis, xs[i], ys[i]) for i in range(len(xs))]
+            #mean_y_axis = np.mean(ys_interp, axis=0)
+            #ax.plot(mean_x_axis, mean_y_axis, label = 'Mean', color='y', linestyle='dashed')
+
+            #mean_y_axis = np.mean([ys[0], ys[1], ys[2], ys[3]], 1)
+            #ax.plot(xs[0], mean_y_axis, label = 'Mean', color='y', linestyle='dashed')
+            
+            min_x = min([min(xs[0]), min(xs[1]), min(xs[2]), min(xs[3])])
+            max_x = max([max(xs[0]), max(xs[1]), max(xs[2]), max(xs[3])])
+            mean_x_axis = np.arange(min_x, max_x, 50.0)
+            mean_y_axis = []
+            median_y_axis = []
+            mode_y_axis = []
+            stdev_y_axis = []
+            print(min_x, max_x)
+            for index, value in enumerate(mean_x_axis):
+                _indexHa = find_nearest_index(xs[0], value)
+                _indexHb = find_nearest_index(xs[1], value)
+                _indexHg = find_nearest_index(xs[2], value)
+                _indexHd = find_nearest_index(xs[3], value)
+                mean_y_axis.append(statistics.mean([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
+                median_y_axis.append(statistics.median([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
+                mode_y_axis.append(statistics.mode([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
+                stdev_y_axis.append(statistics.stdev([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
+            ax.plot(mean_x_axis, mean_y_axis, label = 'Mean', color='m', linestyle='dashed')
+            ax.plot(mean_x_axis, median_y_axis, label = 'Median', color='y', linestyle='dashed')
+            ax.plot(mean_x_axis, mode_y_axis, label = 'Mode', color='k', linestyle='dashed')
+            ax.plot(mean_x_axis, mode_y_axis, label = 'StDev', color='#eeefff', linestyle='dashed')
+
             plt.legend()
             plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
             plt.clf()
