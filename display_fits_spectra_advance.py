@@ -849,8 +849,6 @@ def main(argv):
             max_x = max([max(xs[0]), max(xs[1]), max(xs[2]), max(xs[3])])
             range_x_axis = np.arange(min_x, max_x, 50.0)
             median_y_axis = []
-            #mean_y_axis = []
-            #mode_y_axis = []
             stdev_y_axis = []
             for index, value in enumerate(range_x_axis):
                 _indexHa = find_nearest_index(xs[0], value)
@@ -858,19 +856,64 @@ def main(argv):
                 _indexHg = find_nearest_index(xs[2], value)
                 _indexHd = find_nearest_index(xs[3], value)
                 median_y_axis.append(statistics.median([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
-                #mean_y_axis.append(statistics.mean([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
-                #mode_y_axis.append(statistics.mode([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
                 stdev_y_axis.append(statistics.stdev([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
             
             ax.plot(range_x_axis, median_y_axis, label = 'Median', color='y', linestyle='dashed')
-            #ax.plot(range_x_axis, mean_y_axis, label = 'Mean', color='m', linestyle='dashed')
-            #ax.plot(range_x_axis, mode_y_axis, label = 'Mode', color='k', linestyle='dashed')
-
             symmetric_x_axis, symmetric_y_axis = convert_symmetric_velocities(range_x_axis, median_y_axis)
             ax.plot(symmetric_x_axis, symmetric_y_axis, label = 'Symmetric', color='m', linestyle='dashed')
 
             plt.legend()
             plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
+            plt.clf()
+
+            # Restore median line for all 4 lines and substract to the lines
+            restored_median_xs = [
+                ((range_x_axis / 300000) * Halpha) + Halpha,
+                ((range_x_axis / 300000) * Hbeta) + Hbeta,
+                ((range_x_axis / 300000) * Hgamma) + Hgamma,
+                ((range_x_axis / 300000) * Hdelta) + Hdelta
+            ]
+            restored_median_ys = [
+                np.array(median_y_axis) * maxHalpha,
+                np.array(median_y_axis) * maxHbeta,
+                np.array(median_y_axis) * maxHgamma,
+                np.array(median_y_axis) * maxHdelta
+            ]
+
+            fig, ax = plt.subplots()
+            fig.set_figwidth(15)
+            fig.set_figheight(5)
+            gs = fig.add_gridspec(1,4)
+            ax1 = fig.add_subplot(gs[0, 0])
+            ax2 = fig.add_subplot(gs[0, 1])
+            ax3 = fig.add_subplot(gs[0, 2])
+            ax4 = fig.add_subplot(gs[0, 3])
+            ax1.set_xlabel(HalphaLabel)
+            ax2.set_xlabel(HbetaLabel)
+            ax3.set_xlabel(HgammaLabel)
+            ax4.set_xlabel(HdeltaLabel)
+            ax2.set_ylabel('')
+            ax3.set_ylabel('')
+            ax4.set_ylabel('')
+
+            fluxHa_interpolated = np.interp(wavelengthHa.value, restored_median_xs[0], restored_median_ys[0])
+            fluxHb_interpolated = np.interp(wavelengthHb.value, restored_median_xs[1], restored_median_ys[1])
+            fluxHg_interpolated = np.interp(wavelengthHg.value, restored_median_xs[2], restored_median_ys[2])
+            fluxHd_interpolated = np.interp(wavelengthHd.value, restored_median_xs[3], restored_median_ys[3])
+
+            ax1.plot(restored_median_xs[0], restored_median_ys[0])
+            ax1.plot(wavelengthHa, fluxHa)
+            ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit)
+            ax2.plot(restored_median_xs[1], restored_median_ys[1])
+            ax2.plot(wavelengthHb, fluxHb)
+            ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit)
+            ax3.plot(restored_median_xs[2], restored_median_ys[2])
+            ax3.plot(wavelengthHg, fluxHg)
+            ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit)
+            ax4.plot(restored_median_xs[3], restored_median_ys[3])
+            ax4.plot(wavelengthHd, fluxHd)
+            ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit)
+            plt.savefig(path + filename + '.lines_deblending' + inputParams + '.png')
             plt.clf()
 
             # Close report
@@ -903,7 +946,7 @@ def main(argv):
 
             fig, ax = plt.subplots()
             fig.set_figwidth(10)
-            fig.set_figheight(7)
+            fig.set_figheight(4)
             ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
