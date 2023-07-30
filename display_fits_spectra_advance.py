@@ -33,7 +33,15 @@ def find_nearest_index(array, value):
         return idx-1
     else:
         return idx
-    
+
+def convert_symmetric_velocities(array_x_axis, array_y_axis):
+    _indexZero = find_nearest_index(array_x_axis, 0)
+    if (array_x_axis[_indexZero] < 0):
+        _indexZero = _indexZero + 1
+    _splice_array_x_axis = np.concatenate((np.flip(array_x_axis[_indexZero + 1:]) * -1, array_x_axis[_indexZero:]))
+    _splice_array_y_axis = np.concatenate((np.flip(array_y_axis[_indexZero + 1:]), array_y_axis[_indexZero:]))
+    return _splice_array_x_axis, _splice_array_y_axis
+  
 def is_date(string, format):
     try:
         return bool(datetime.strptime(string, format))
@@ -142,7 +150,7 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
     max_continuum = median + sd * _histogramStDevPercent
 
     _count_pass_continuum = 0
-    while(_leftPadding < 100):
+    while(_leftPadding < 200):
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
         _flux = _spec_flux.flux[_indexFlux].value
         if (_flux <= max_continuum and _flux >= min_continuum):
@@ -154,7 +162,7 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
         _leftPadding += 1
 
     _count_pass_continuum = 0
-    while(_rightPadding < 100):
+    while(_rightPadding < 200):
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
         _flux = _spec_flux.flux[_indexFlux].value
         if (_flux <= max_continuum and _flux >= min_continuum):
@@ -165,10 +173,10 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
             _count_pass_continuum = 0
         _rightPadding += 1
 
-    if (_leftPadding >= 100):
-        _leftPadding = 100 - _angstromIncrement
-    if (_rightPadding >= 100):
-        _rightPadding = 100 - _angstromIncrement
+    if (_leftPadding >= 200):
+        _leftPadding = 200 - _angstromIncrement
+    if (_rightPadding >= 200):
+        _rightPadding = 200 - _angstromIncrement
     _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
 
     _fwhmData = fwhm(_spec_norm, regions = _regions)
@@ -837,34 +845,29 @@ def main(argv):
             ax.plot(xs[3], ys[3], label = HdeltaLabel)
             ax.set(xlabel = f"{(u.kilometer / u.second)}", ylabel='Normalised')
             
-            #mean_x_axis = [i for i in range(max(xs))]
-            #ys_interp = [np.interp(mean_x_axis, xs[i], ys[i]) for i in range(len(xs))]
-            #mean_y_axis = np.mean(ys_interp, axis=0)
-            #ax.plot(mean_x_axis, mean_y_axis, label = 'Mean', color='y', linestyle='dashed')
-
-            #mean_y_axis = np.mean([ys[0], ys[1], ys[2], ys[3]], 1)
-            #ax.plot(xs[0], mean_y_axis, label = 'Mean', color='y', linestyle='dashed')
-            
             min_x = min([min(xs[0]), min(xs[1]), min(xs[2]), min(xs[3])])
             max_x = max([max(xs[0]), max(xs[1]), max(xs[2]), max(xs[3])])
-            mean_x_axis = np.arange(min_x, max_x, 50.0)
-            mean_y_axis = []
+            range_x_axis = np.arange(min_x, max_x, 50.0)
             median_y_axis = []
-            mode_y_axis = []
+            #mean_y_axis = []
+            #mode_y_axis = []
             stdev_y_axis = []
-            print(min_x, max_x)
-            for index, value in enumerate(mean_x_axis):
+            for index, value in enumerate(range_x_axis):
                 _indexHa = find_nearest_index(xs[0], value)
                 _indexHb = find_nearest_index(xs[1], value)
                 _indexHg = find_nearest_index(xs[2], value)
                 _indexHd = find_nearest_index(xs[3], value)
-                mean_y_axis.append(statistics.mean([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
                 median_y_axis.append(statistics.median([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
-                mode_y_axis.append(statistics.mode([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
+                #mean_y_axis.append(statistics.mean([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
+                #mode_y_axis.append(statistics.mode([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
                 stdev_y_axis.append(statistics.stdev([ys[0][_indexHa], ys[1][_indexHb], ys[2][_indexHg], ys[3][_indexHd]]))
-            ax.plot(mean_x_axis, mean_y_axis, label = 'Mean', color='m', linestyle='dashed')
-            ax.plot(mean_x_axis, median_y_axis, label = 'Median', color='y', linestyle='dashed')
-            ax.plot(mean_x_axis, mode_y_axis, label = 'Mode', color='k', linestyle='dashed')
+            
+            ax.plot(range_x_axis, median_y_axis, label = 'Median', color='y', linestyle='dashed')
+            #ax.plot(range_x_axis, mean_y_axis, label = 'Mean', color='m', linestyle='dashed')
+            #ax.plot(range_x_axis, mode_y_axis, label = 'Mode', color='k', linestyle='dashed')
+
+            symmetric_x_axis, symmetric_y_axis = convert_symmetric_velocities(range_x_axis, median_y_axis)
+            ax.plot(symmetric_x_axis, symmetric_y_axis, label = 'Symmetric', color='m', linestyle='dashed')
 
             plt.legend()
             plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
