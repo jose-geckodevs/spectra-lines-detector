@@ -812,7 +812,7 @@ def main(argv):
             plt.savefig(path + filename + inputParams + '.png')
             plt.clf()
 
-            # Plot lines average shape overlap
+            # Plot lines average shape overlap with median and median symetric
             fig, ax = plt.subplots()
             fig.set_figwidth(10)
             fig.set_figheight(7)
