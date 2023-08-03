@@ -236,7 +236,7 @@ def main(argv):
     Model = F99
     AngstromIncrement = 5
     HistogramStDevPercent = 0.5
-    FileSuffix = ''
+    FolderSuffix = ''
     inputParams = ''
 
     try:
@@ -245,7 +245,7 @@ def main(argv):
                                                 'angstromIncrement=','histogramStDevPercent=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label=',
-                                                'fileSuffix=','evolutionlabel='])
+                                                'folderSuffix=','evolutionlabel='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -298,11 +298,19 @@ def main(argv):
             AngstromIncrement = int(arg)
         elif opt in ('--histogramStDevPercent'):
             HistogramStDevPercent = float(arg)
-        elif opt in ('--fileSuffix'):
-            FileSuffix = arg
+        elif opt in ('--folderSuffix'):
+            FolderSuffix = arg
 
-    if (FileSuffix != ''):
-        inputParams = FileSuffix
+    if (FolderSuffix != ''):
+        inputParams = FolderSuffix
+
+    if (inputParams == ''):
+        output_path = path + 'default/'
+    else:
+        output_path = path + 'params' + inputParams + '/'
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -366,7 +374,7 @@ def main(argv):
         else:
             evolutionPlaneLog = False
             
-        csv = open(path + 'lines_measurements' + inputParams + '.csv', 'w')
+        csv = open(output_path + 'lines_measurements.csv', 'w')
         csv.write('Spectra file;')
         csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' deblended flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
         csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' deblended flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
@@ -379,7 +387,7 @@ def main(argv):
             if not filename.endswith('.fits') and not filename.endswith('.dat'):
                 continue
             
-            report = open(path + filename + inputParams + '.txt', 'w')
+            report = open(output_path + filename + '.txt', 'w')
             report.write('Filename: ' + filename + '\n')
 
             csv.write(filename + ';')
@@ -801,7 +809,7 @@ def main(argv):
                 evolutionPlane.append(sortedDates[counter])
             
             # Plot main figure
-            plt.savefig(path + filename + inputParams + '.png')
+            plt.savefig(output_path + filename + '.png')
             plt.clf()
 
             # Plot lines average shape overlap with median and median symetric
@@ -855,7 +863,7 @@ def main(argv):
             ax.plot(symmetric_x_axis, symmetric_y_axis, label = 'Symmetric', color='m', linestyle='dashed')
 
             plt.legend()
-            plt.savefig(path + filename + '.lines_shape_overlap' + inputParams + '.png')
+            plt.savefig(output_path + filename + '.lines_shape_overlap.png')
             plt.clf()
 
             # Restore median line for all 4 lines and substract to the lines
@@ -918,7 +926,7 @@ def main(argv):
             ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'm - l')
             ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
             plt.legend()
-            plt.savefig(path + filename + '.lines_deblending' + inputParams + '.png')
+            plt.savefig(output_path + filename + '.lines_deblending.png')
             plt.clf()
 
             # Calculate flux of deblended lines
@@ -976,7 +984,7 @@ def main(argv):
             else:
                 fig.autofmt_xdate()
             plt.legend()
-            plt.savefig(path + 'lines_flux_evolution' + inputParams + '.png')
+            plt.savefig(output_path + 'lines_flux_evolution.png')
             plt.clf()
 
             fig, ax = plt.subplots()
@@ -992,7 +1000,7 @@ def main(argv):
             else:
                 fig.autofmt_xdate()
             plt.legend()
-            plt.savefig(path + 'lines_ratio_evolution' + inputParams + '.png')
+            plt.savefig(output_path + 'lines_ratio_evolution.png')
             plt.clf()
 
             fig, ax = plt.subplots()
@@ -1009,7 +1017,7 @@ def main(argv):
             else:
                 fig.autofmt_xdate()
             plt.legend()
-            plt.savefig(path + 'lines_fwhm_evolution' + inputParams + '.png')
+            plt.savefig(output_path + 'lines_fwhm_evolution.png')
             plt.clf()
 
         csv.close()

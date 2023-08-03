@@ -44,9 +44,9 @@ Advanced parameters:
 `--l4centroid 6563 --l4label Halpha`
 `--angstromIncrement 5`
 `--histrogramStDevPercent 0.5`
-`--fileSuffix test001`
+`--folderSuffix test001`
 
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits --angstromIncrement 1 --histogramStDevPercent 0.3 --fileSuffix -angstrom1-std0.3`
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -angstrom1-std0.3`
 
 ## OSX
 Download pip:
