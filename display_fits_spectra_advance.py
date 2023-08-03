@@ -144,8 +144,12 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
 
     _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
 
-    median = statistics.median(_flux.value)
-    sd = statistics.stdev(_flux.value)
+    #median = statistics.median(_flux.value)
+    #sd = statistics.stdev(_flux.value)
+    # Best calculate median from whole spectrum
+    median = statistics.median(_spec_flux.flux.value)
+    sd = statistics.stdev(_spec_flux.flux.value)
+
     min_continuum = median - sd * _histogramStDevPercent
     max_continuum = median + sd * _histogramStDevPercent
 
