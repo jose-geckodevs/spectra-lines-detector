@@ -364,10 +364,10 @@ def main(argv):
             
         csv = open(path + 'lines_measurements' + inputParams + '.csv', 'w')
         csv.write('Spectra file;')
-        csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
-        csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
-        csv.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
-        csv.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm')
+        csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' deblended flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
+        csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' deblended flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
+        csv.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' deblended flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
+        csv.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' deblended flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm')
         csv.write('\n')
 
         counter = 0
@@ -773,18 +773,6 @@ def main(argv):
             hgValues = np.array([HgammaLabel, fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
             hdValues = np.array([HdeltaLabel, fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
             
-            lines = np.array([haValues, hbValues, hgValues, hdValues])
-            report.write('Lines analisys' + '\n')
-            report.write(tabulate(lines, headers=['Line','Flux','FWHM', 'Equivalent width', 'Centroid']) + '\n')
-            report.write('* Units: ' + str(fluxData[0].unit))
-            report.write('\n')
-
-            csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
-            csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
-            csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
-            csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value))
-            csv.write('\n')
-            
             # Calculate lines evolution
             HalphaEvolution.append(fluxData[0].value)
             HbetaEvolution.append(fluxData[1].value)
@@ -900,21 +888,66 @@ def main(argv):
             fluxHb_interpolated = np.interp(wavelengthHb.value, restored_median_xs[1], restored_median_ys[1])
             fluxHg_interpolated = np.interp(wavelengthHg.value, restored_median_xs[2], restored_median_ys[2])
             fluxHd_interpolated = np.interp(wavelengthHd.value, restored_median_xs[3], restored_median_ys[3])
+            
+            fluxHa_deblended = (fluxHa.value - (fluxHa.value - fluxHa_interpolated)) * fluxHa.unit
+            fluxHb_deblended = (fluxHb.value - (fluxHb.value - fluxHb_interpolated)) * fluxHb.unit
+            fluxHg_deblended = (fluxHg.value - (fluxHg.value - fluxHg_interpolated)) * fluxHg.unit
+            fluxHd_deblended = (fluxHd.value - (fluxHd.value - fluxHd_interpolated)) * fluxHd.unit
 
-            ax1.plot(restored_median_xs[0], restored_median_ys[0])
-            ax1.plot(wavelengthHa, fluxHa)
-            ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit)
-            ax2.plot(restored_median_xs[1], restored_median_ys[1])
-            ax2.plot(wavelengthHb, fluxHb)
-            ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit)
-            ax3.plot(restored_median_xs[2], restored_median_ys[2])
-            ax3.plot(wavelengthHg, fluxHg)
-            ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit)
-            ax4.plot(restored_median_xs[3], restored_median_ys[3])
-            ax4.plot(wavelengthHd, fluxHd)
-            ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit)
+            ax1.plot(wavelengthHa, fluxHa, label = 'l')
+            ax1.plot(restored_median_xs[0], restored_median_ys[0], label = 'm')
+            ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'm - l')
+            ax1.plot(wavelengthHa, fluxHa_deblended, label = 'd')
+
+            ax2.plot(wavelengthHb, fluxHb, label = 'l')
+            ax2.plot(restored_median_xs[1], restored_median_ys[1], label = 'm')
+            ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'm - l')
+            ax2.plot(wavelengthHb, fluxHb_deblended, label = 'd')
+
+            ax3.plot(wavelengthHg, fluxHg, label = 'l')
+            ax3.plot(restored_median_xs[2], restored_median_ys[2], label = 'm')
+            ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'm - l')
+            ax3.plot(wavelengthHg, fluxHg_deblended, label = 'd')
+
+            ax4.plot(wavelengthHd, fluxHd, label = 'l')
+            ax4.plot(restored_median_xs[3], restored_median_ys[3], label = 'm')
+            ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'm - l')
+            ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
+            plt.legend()
             plt.savefig(path + filename + '.lines_deblending' + inputParams + '.png')
             plt.clf()
+
+            # Calculate flux of deblended lines
+            spec_ha_deblended = Spectrum1D(spectral_axis=wavelengthHa, flux=fluxHa_deblended, meta=meta)
+            pec_hb_deblended = Spectrum1D(spectral_axis=wavelengthHb, flux=fluxHb_deblended, meta=meta)
+            pec_hg_deblended = Spectrum1D(spectral_axis=wavelengthHg, flux=fluxHg_deblended, meta=meta)
+            pec_hd_deblended = Spectrum1D(spectral_axis=wavelengthHd, flux=fluxHd_deblended, meta=meta)
+
+            haFluxDataDeblended = line_flux(spec_ha_deblended, regions = [SpectralRegion((Halpha - haCalculations[4]) * u.AA, (Halpha + haCalculations[5]) * u.AA )])
+            hbFluxDataDeblended = line_flux(pec_hb_deblended, regions = [SpectralRegion((Hbeta - hbCalculations[4]) * u.AA, (Hbeta + hbCalculations[5]) * u.AA )])
+            hgFluxDataDeblended = line_flux(pec_hg_deblended, regions = [SpectralRegion((Hgamma - hgCalculations[4]) * u.AA, (Hgamma + hgCalculations[5]) * u.AA )])
+            hdFluxDataDeblended = line_flux(pec_hd_deblended, regions = [SpectralRegion((Hdelta - hdCalculations[4]) * u.AA, (Hdelta + hdCalculations[5]) * u.AA )])
+
+            haValues = np.insert(haValues, 2, haFluxDataDeblended[0].value)
+            hbValues = np.insert(hbValues, 2, hbFluxDataDeblended[0].value)
+            hgValues = np.insert(hgValues, 2, hgFluxDataDeblended[0].value)
+            hdValues = np.insert(hdValues, 2, hdFluxDataDeblended[0].value)
+            
+            # Write report
+            lines = np.array([haValues, hbValues, hgValues, hdValues])
+            report.write('Lines analisys' + '\n')
+            report.write(tabulate(lines, headers=['Line','Flux','Deblended Flux', 'FWHM', 'Equivalent width', 'Centroid']) + '\n')
+            report.write('* Units: ' + str(fluxData[0].unit))
+            report.write('\n')
+
+            print([haFluxDataDeblended, hbFluxDataDeblended, hgFluxDataDeblended, hdFluxDataDeblended])
+
+            # Write spreadsheet
+            csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(haFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
+            csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(hbFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
+            csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(hgFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
+            csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(hdFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value))
+            csv.write('\n')
 
             # Close report
             report.close()
