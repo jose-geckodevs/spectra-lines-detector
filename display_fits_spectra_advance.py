@@ -940,8 +940,6 @@ def main(argv):
             report.write('* Units: ' + str(fluxData[0].unit))
             report.write('\n')
 
-            print([haFluxDataDeblended, hbFluxDataDeblended, hgFluxDataDeblended, hdFluxDataDeblended])
-
             # Write spreadsheet
             csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(haFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
             csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(hbFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
