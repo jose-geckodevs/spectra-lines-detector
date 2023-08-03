@@ -977,7 +977,7 @@ def main(argv):
 
             fig, ax = plt.subplots()
             fig.set_figwidth(10)
-            fig.set_figheight(4)
+            fig.set_figheight(7)
             ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
             ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
