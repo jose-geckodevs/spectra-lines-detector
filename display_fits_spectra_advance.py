@@ -304,6 +304,9 @@ def main(argv):
     if (FolderSuffix != ''):
         inputParams = FolderSuffix
 
+    if (datPath != ''):
+        path = datPath
+
     if (inputParams == ''):
         output_path = path + 'default/'
     else:
@@ -334,7 +337,6 @@ def main(argv):
 
         if (datPath != ''):
             # Sort FITs by filename
-            path = datPath
             sortedFiles = []
             sortedDates = []
             for filename in os.listdir(path):
