@@ -48,6 +48,8 @@ Advanced parameters:
 
 `python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -angstrom1-std0.3`
 
+`python3 display_fits_spectra_advance.py --path ./V5114Sgr/dat  --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89 --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -ebc0.6-rv3.2-angstrom1-std0.3`
+
 ## OSX
 Download pip:
 `curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py`
