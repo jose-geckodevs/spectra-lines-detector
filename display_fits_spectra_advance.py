@@ -192,6 +192,110 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
 
     return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
+def measure_line_continuum_simetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
+    _padding = _angstromIncrement
+    _regions = []
+
+    _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
+
+    #median = statistics.median(_flux.value)
+    #sd = statistics.stdev(_flux.value)
+    # Best calculate median from whole spectrum
+    median = statistics.median(_spec_flux.flux.value)
+    sd = statistics.stdev(_spec_flux.flux.value)
+
+    min_continuum = median - sd * _histogramStDevPercent
+    max_continuum = median + sd * _histogramStDevPercent
+
+    _count_pass_continuum = 0
+    while(_padding < 200):
+        _indexLeftFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _padding)
+        _indexRightFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _padding)
+        _leftFlux = _spec_flux.flux[_indexLeftFlux].value
+        _rightFlux = _spec_flux.flux[_indexRightFlux].value
+        if ((_leftFlux <= max_continuum and _leftFlux >= min_continuum) or (_rightFlux <= max_continuum and _rightFlux >= min_continuum)):
+            _count_pass_continuum = _count_pass_continuum + 1
+            if (_count_pass_continuum > 2):
+                break
+        else:
+            _count_pass_continuum = 0
+        _padding += 1
+
+    if (_padding >= 200):
+        _padding = 200 - _angstromIncrement
+    _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
+
+    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fluxData = line_flux(_spec_flux, regions = _regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+    _centroidData = centroid(_spec_norm, regions = _regions)
+
+    # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
+
+    return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _padding, _padding
+
+def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
+    # Improved by using the bigger padding found (the previous simetric one would be like using the smaller one)
+    _leftPadding = _angstromIncrement
+    _rightPadding = _angstromIncrement
+    _regions = []
+
+    _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
+
+    #median = statistics.median(_flux.value)
+    #sd = statistics.stdev(_flux.value)
+    # Best calculate median from whole spectrum
+    median = statistics.median(_spec_flux.flux.value)
+    sd = statistics.stdev(_spec_flux.flux.value)
+
+    min_continuum = median - sd * _histogramStDevPercent
+    max_continuum = median + sd * _histogramStDevPercent
+
+    _count_pass_continuum = 0
+    while(_leftPadding < 200):
+        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
+        _flux = _spec_flux.flux[_indexFlux].value
+        if (_flux <= max_continuum and _flux >= min_continuum):
+            _count_pass_continuum = _count_pass_continuum + 1
+            if (_count_pass_continuum > 2):
+                break
+        else:
+            _count_pass_continuum = 0
+        _leftPadding += 1
+
+    _count_pass_continuum = 0
+    while(_rightPadding < 200):
+        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
+        _flux = _spec_flux.flux[_indexFlux].value
+        if (_flux <= max_continuum and _flux >= min_continuum):
+            _count_pass_continuum = _count_pass_continuum + 1
+            if (_count_pass_continuum > 2):
+                break
+        else:
+            _count_pass_continuum = 0
+        _rightPadding += 1
+
+    if (_leftPadding >= 200):
+        _leftPadding = 200 - _angstromIncrement
+    if (_rightPadding >= 200):
+        _rightPadding = 200 - _angstromIncrement
+
+    _padding = _angstromIncrement
+    if (_leftPadding > _rightPadding):
+        _padding = _leftPadding
+    else:
+        _padding = _rightPadding
+    _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
+
+    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fluxData = line_flux(_spec_flux, regions = _regions)
+    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+    _centroidData = centroid(_spec_norm, regions = _regions)
+
+    # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
+
+    return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _padding, _padding
+
 def print_help():
     print('display_fits_spectra_advance.py')
     print('         --debug')
@@ -754,10 +858,10 @@ def main(argv):
                 report.write('\n')
             
             # Measure lines finding paddign from amx fwhm
-            haCalculations = measure_line_continuum_asimetric(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            hbCalculations = measure_line_continuum_asimetric(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            hgCalculations = measure_line_continuum_asimetric(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            hdCalculations = measure_line_continuum_asimetric(Hdelta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            haCalculations = measure_line_continuum_bigger_padding(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            hbCalculations = measure_line_continuum_bigger_padding(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            hgCalculations = measure_line_continuum_bigger_padding(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
+            hdCalculations = measure_line_continuum_bigger_padding(Hdelta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
             equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
@@ -825,10 +929,17 @@ def main(argv):
             fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], spec_flux)
             fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], spec_flux)
             fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], spec_flux)
-            maxHalpha = np.max(fluxHa.value)
-            maxHbeta = np.max(fluxHb.value)
-            maxHgamma = np.max(fluxHg.value)
-            maxHdelta = np.max(fluxHd.value)
+            
+            # TODO: fix this to be the flux value at rest frequecy, so the reference value of each line
+            #maxHalpha = np.max(fluxHa.value)
+            #maxHbeta = np.max(fluxHb.value)
+            #maxHgamma = np.max(fluxHg.value)
+            #maxHdelta = np.max(fluxHd.value)
+            maxHalpha = fluxHa[find_nearest_index(wavelengthHa.value, Halpha)].value
+            maxHbeta = fluxHb[find_nearest_index(wavelengthHb.value, Hbeta)].value
+            maxHgamma = fluxHg[find_nearest_index(wavelengthHg.value, Hgamma)].value
+            maxHdelta = fluxHd[find_nearest_index(wavelengthHd.value, Hdelta)].value
+            
             xs = [
                 300000 * ((wavelengthHa.value - Halpha) / Halpha),
                 300000 * ((wavelengthHb.value - Hbeta) / Hbeta),
@@ -910,22 +1021,22 @@ def main(argv):
 
             ax1.plot(wavelengthHa, fluxHa, label = 'l')
             ax1.plot(restored_median_xs[0], restored_median_ys[0], label = 'm')
-            ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'm - l')
+            ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'l - m')
             ax1.plot(wavelengthHa, fluxHa_deblended, label = 'd')
 
             ax2.plot(wavelengthHb, fluxHb, label = 'l')
             ax2.plot(restored_median_xs[1], restored_median_ys[1], label = 'm')
-            ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'm - l')
+            ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'l - m')
             ax2.plot(wavelengthHb, fluxHb_deblended, label = 'd')
 
             ax3.plot(wavelengthHg, fluxHg, label = 'l')
             ax3.plot(restored_median_xs[2], restored_median_ys[2], label = 'm')
-            ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'm - l')
+            ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'l - m')
             ax3.plot(wavelengthHg, fluxHg_deblended, label = 'd')
 
             ax4.plot(wavelengthHd, fluxHd, label = 'l')
             ax4.plot(restored_median_xs[3], restored_median_ys[3], label = 'm')
-            ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'm - l')
+            ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'l - m')
             ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
             plt.legend()
             plt.savefig(output_path + filename + '.lines_deblending.png')
