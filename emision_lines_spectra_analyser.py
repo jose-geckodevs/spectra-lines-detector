@@ -1124,11 +1124,6 @@ def main(argv):
             plt.clf()
 
             # Finally save the processed spectra to file
-            #processed_data_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=spec.flux - all_lines, meta=meta)
-            #processed_data_spec.write(output_path + '/processed/' + filename + '.processed.fits') # This fails if we load from dat, not fits
-            #processed_data_tab = Table([spec.wavelength, spec.flux - all_lines], names=("spectral_axis", "flux"), meta=meta)
-            #processed_data_tab.write(output_path + '/processed/' + filename + '.processed.fits', format='fits', overwrite=True)
-            # Both above fail to store the header properly, so we will save as dat files
             np.savetxt(output_path + '/processed/' + filename + '.processed.dat', np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
 
             # Calculate flux of deblended lines
