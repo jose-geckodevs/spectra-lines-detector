@@ -27,6 +27,11 @@ from dateutil.parser import parse
 import math
 import statistics
 
+HALPHA_REF = 6563
+HBETA_REF = 4861
+HGAMMA_REF = 4341
+HDELTA_REF = 4102
+
 def find_nearest_index(array, value):
     idx = np.searchsorted(array, value, side="left")
     if idx > 0 and (idx == len(array) or math.fabs(value - array[idx-1]) < math.fabs(value - array[idx])):
@@ -60,6 +65,12 @@ def limit_spectra_array(_low: int, _up: int, _spectrum: Spectrum1D):
     if (not _foundUpperIndex):
         _foundUpperIndex = index
     return _spectrum.flux.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.flux.unit, _spectrum.wavelength.value[_foundLowerIndex:_foundUpperIndex] * _spectrum.wavelength.unit
+
+def reset_spectra_array_except_range(_low: int, _up: int, _spectrum: Spectrum1D):
+    for index, wavelength in enumerate(_spectrum.wavelength):
+         if wavelength.value < _low or wavelength.value > _up:
+             _spectrum.flux.value[index] = 0
+    return _spectrum        
 
 def reduce_sorted_fits_array_by_filename(item: list):
     return item[0]
@@ -324,13 +335,13 @@ def main(argv):
     debug = False
     onlyOne = False
     
-    Halpha = 6563
+    Halpha = HALPHA_REF
     HalphaLabel = 'Halpha'
-    Hbeta = 4861
+    Hbeta = HBETA_REF
     HbetaLabel = 'Hbeta'
-    Hgamma = 4341
+    Hgamma = HGAMMA_REF
     HgammaLabel = 'Hgamma'
-    Hdelta = 4102
+    Hdelta = HDELTA_REF
     HdeltaLabel = 'Hdelta'
     EvolutionLabel = 'Days after maximum'
     WavelenghtLowerLimit = 4000
@@ -416,8 +427,13 @@ def main(argv):
     else:
         output_path = path + 'params' + inputParams + '/'
 
+    # Prepare folder for files
     if not os.path.exists(output_path):
         os.makedirs(output_path)
+
+    # Prepare folder for regenreated spectra processed files
+    if not os.path.exists(output_path + '/processed'):
+        os.makedirs(output_path + '/processed')
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -462,7 +478,7 @@ def main(argv):
             for filename in os.listdir(path):
                 if not filename.endswith('.fits'):
                     continue
-                spec = Spectrum1D.read(path + filename, format='wcs1d-fits')
+                spec = Spectrum1D.read(path + filename)
                 listFITS.append([filename, spec.meta['header']['DATE-OBS']])
             
             if (len(listFITS) <= 0):
@@ -505,6 +521,7 @@ def main(argv):
                 meta['header'] = {}
                 meta['header']['NAXIS1'] = len(data.wavelength)
                 meta['header']['CRVAL1'] = data.wavelength[0]
+                meta['header']['DATE-OBS'] = sortedDates[counter]
                 spec_original = Spectrum1D(spectral_axis=np.array(data.wavelength) * u.AA, flux=np.array(data.flux) * (u.erg / u.Angstrom / u.s / u.cm / u.cm), meta=meta)
 
             else:
@@ -516,7 +533,7 @@ def main(argv):
                 hdul.close()
 
                 # Read the spectrum
-                spec_original = Spectrum1D.read(path + filename, format='wcs1d-fits')
+                spec_original = Spectrum1D.read(path + filename)
                 
                 if debug:
                     report.write(repr(spec_original.meta['header']) + '\n')
@@ -582,7 +599,7 @@ def main(argv):
             numLinesFirstIteration = len(lines)
             
             if debug:
-                # Try identify Balmer series
+                # Try identify lines
                 lines.add_column(name='match', col='          ')
                 for row in lines:
                     if (abs(row[0].value - Halpha) < 10):
@@ -790,7 +807,7 @@ def main(argv):
                 spec_noise = noise_region_uncertainty(spec_flux, noise_region)
                 lines = find_lines_threshold(spec_noise, noise_factor=1)
                 
-            # Try identify Balmer series
+            # Try identify lines
             lines.add_column(name='match', col='          ')
             for row in lines:
                 if (abs(row[0].value - Halpha) < 10):
@@ -838,7 +855,7 @@ def main(argv):
             # Find lines by derivating
             lines = find_lines_derivative(spec_normalized, flux_threshold=0.95)
             
-            # Try identify Balmer series
+            # Try identify lines
             lines.add_column(name='match', col='          ')
             for row in lines:
                 if (abs(row[0].value - Halpha) < 10):
@@ -857,7 +874,7 @@ def main(argv):
                 report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
             
-            # Measure lines finding paddign from amx fwhm
+            # Measure lines finding paddigns
             haCalculations = measure_line_continuum_bigger_padding(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             hbCalculations = measure_line_continuum_bigger_padding(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             hgCalculations = measure_line_continuum_bigger_padding(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
@@ -891,14 +908,18 @@ def main(argv):
             hgValues = np.array([HgammaLabel, fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
             hdValues = np.array([HdeltaLabel, fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
             
-            # Calculate lines evolution
+            # Calculate evolution graphs
             HalphaEvolution.append(fluxData[0].value)
             HbetaEvolution.append(fluxData[1].value)
             HgammaEvolution.append(fluxData[2].value)
             HdeltaEvolution.append(fluxData[3].value)
-            Halpha_Hbeta.append(fluxData[0] / fluxData[1])
-            Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
-            Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
+            
+            if (Halpha == HALPHA_REF and Hbeta == HBETA_REF and Hgamma == HGAMMA_REF and Hdelta == HDELTA_REF):
+                # Only generate this graph if measuring the main H lines
+                Halpha_Hbeta.append(fluxData[0] / fluxData[1])
+                Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
+                Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
+
             HalphaFWHMEvolution.append((fwhmData[0].value / centroidData[0].value) * const.c.to('km/s').value)
             HbetaFWHMEvolution.append((fwhmData[1].value / centroidData[1].value) * const.c.to('km/s').value)
             HgammaFWHMEvolution.append((fwhmData[2].value / centroidData[2].value) * const.c.to('km/s').value)
@@ -930,11 +951,7 @@ def main(argv):
             fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], spec_flux)
             fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], spec_flux)
             
-            # TODO: fix this to be the flux value at rest frequecy, so the reference value of each line
-            #maxHalpha = np.max(fluxHa.value)
-            #maxHbeta = np.max(fluxHb.value)
-            #maxHgamma = np.max(fluxHg.value)
-            #maxHdelta = np.max(fluxHd.value)
+            # Find the max flux value at rest frequecy, so the reference value of each line
             maxHalpha = fluxHa[find_nearest_index(wavelengthHa.value, Halpha)].value
             maxHbeta = fluxHb[find_nearest_index(wavelengthHb.value, Hbeta)].value
             maxHgamma = fluxHg[find_nearest_index(wavelengthHg.value, Hgamma)].value
@@ -1042,6 +1059,78 @@ def main(argv):
             plt.savefig(output_path + filename + '.lines_deblending.png')
             plt.clf()
 
+            # Recalculate the spectra substracting the deblended lines to the original (dereddem) spectra
+            fluxHa_deblended_interpolated = np.interp(spec.wavelength, wavelengthHa, fluxHa_deblended)
+            fluxHb_deblended_interpolated = np.interp(spec.wavelength, wavelengthHb, fluxHb_deblended)
+            fluxHg_deblended_interpolated = np.interp(spec.wavelength, wavelengthHg, fluxHg_deblended)
+            fluxHd_deblended_interpolated = np.interp(spec.wavelength, wavelengthHd, fluxHd_deblended)
+            
+            fluxHa_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHa_deblended_interpolated, meta=meta)
+            fluxHb_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHb_deblended_interpolated, meta=meta)
+            fluxHg_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHg_deblended_interpolated, meta=meta)
+            fluxHd_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHd_deblended_interpolated, meta=meta)
+
+            # Be sure we null all flux outside the lines
+            fluxHa_deblended_interpolated_spec = reset_spectra_array_except_range(Halpha - haCalculations[4], Halpha + haCalculations[5], fluxHa_deblended_interpolated_spec)
+            fluxHb_deblended_interpolated_spec = reset_spectra_array_except_range(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], fluxHb_deblended_interpolated_spec)
+            fluxHg_deblended_interpolated_spec = reset_spectra_array_except_range(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], fluxHg_deblended_interpolated_spec)
+            fluxHd_deblended_interpolated_spec = reset_spectra_array_except_range(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], fluxHd_deblended_interpolated_spec)
+            
+            fluxHa_deblended_interpolated = fluxHa_deblended_interpolated_spec.flux
+            fluxHb_deblended_interpolated = fluxHb_deblended_interpolated_spec.flux
+            fluxHg_deblended_interpolated = fluxHg_deblended_interpolated_spec.flux
+            fluxHd_deblended_interpolated = fluxHd_deblended_interpolated_spec.flux
+
+            # Generate separate lines plots for reference
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            ax.plot(spec.wavelength, fluxHa_deblended_interpolated, label = HalphaLabel)
+            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+            plt.savefig(output_path + filename + '.' + HalphaLabel.lower() + '_deblended.png')
+            plt.clf()
+
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            ax.plot(spec.wavelength, fluxHb_deblended_interpolated, label = HbetaLabel)
+            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+            plt.savefig(output_path + filename + '.' + HbetaLabel.lower() + '_deblended.png')
+            plt.clf()
+
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            ax.plot(spec.wavelength, fluxHg_deblended_interpolated, label = HgammaLabel)
+            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+            plt.savefig(output_path + filename + '.' + HgammaLabel.lower() + '_deblended.png')
+            plt.clf()
+
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            ax.plot(spec.wavelength, fluxHd_deblended_interpolated, label = HdeltaLabel)
+            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+            plt.savefig(output_path + filename + '.' + HdeltaLabel.lower() + '_deblended.png')
+            plt.clf()
+
+            all_lines = fluxHa_deblended_interpolated + fluxHb_deblended_interpolated + fluxHg_deblended_interpolated + fluxHd_deblended_interpolated
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            ax.plot(spec.wavelength, all_lines, label = 'All lines')
+            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+            plt.savefig(output_path + filename + '.all_deblended_lines.png')
+            plt.clf()
+
+            # Finally save the processed spectra to file
+            #processed_data_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=spec.flux - all_lines, meta=meta)
+            #processed_data_spec.write(output_path + '/processed/' + filename + '.processed.fits') # This fails if we load from dat, not fits
+            #processed_data_tab = Table([spec.wavelength, spec.flux - all_lines], names=("spectral_axis", "flux"), meta=meta)
+            #processed_data_tab.write(output_path + '/processed/' + filename + '.processed.fits', format='fits', overwrite=True)
+            # Both above fail to store the header properly, so we will save as dat files
+            np.savetxt(output_path + '/processed/' + filename + '.processed.dat', np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
+
             # Calculate flux of deblended lines
             spec_ha_deblended = Spectrum1D(spectral_axis=wavelengthHa, flux=fluxHa_deblended, meta=meta)
             pec_hb_deblended = Spectrum1D(spectral_axis=wavelengthHb, flux=fluxHb_deblended, meta=meta)
@@ -1083,6 +1172,7 @@ def main(argv):
                 break # Just as test to only process the first spectrum of the folder
             
         if (counter > 0):
+            # Only generate evoluti0on graphs if more than one spectra analysed
             fig, ax = plt.subplots()
             fig.set_figwidth(10)
             fig.set_figheight(7)
@@ -1100,21 +1190,23 @@ def main(argv):
             plt.savefig(output_path + 'lines_flux_evolution.png')
             plt.clf()
 
-            fig, ax = plt.subplots()
-            fig.set_figwidth(10)
-            fig.set_figheight(7)
-            ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
-            ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
-            ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
-            ax.set(xlabel = EvolutionLabel, ylabel = 'Line ratio')
-            ax.set_yscale('log')
-            if (evolutionPlaneLog):
-                ax.set_xscale('log')
-            else:
-                fig.autofmt_xdate()
-            plt.legend()
-            plt.savefig(output_path + 'lines_ratio_evolution.png')
-            plt.clf()
+            if (Halpha == HALPHA_REF and Hbeta == HBETA_REF and Hgamma == HGAMMA_REF and Hdelta == HDELTA_REF):
+                # Only generate this graph if measuring the main H lines
+                fig, ax = plt.subplots()
+                fig.set_figwidth(10)
+                fig.set_figheight(7)
+                ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
+                ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
+                ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
+                ax.set(xlabel = EvolutionLabel, ylabel = 'Line ratio')
+                ax.set_yscale('log')
+                if (evolutionPlaneLog):
+                    ax.set_xscale('log')
+                else:
+                    fig.autofmt_xdate()
+                plt.legend()
+                plt.savefig(output_path + 'lines_ratio_evolution.png')
+                plt.clf()
 
             fig, ax = plt.subplots()
             fig.set_figwidth(10)

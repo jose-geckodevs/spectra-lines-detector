@@ -1,5 +1,5 @@
-# FITS spectra analyser
-Python script to analyse a set of FITS spectra novae, extract absortion and emission lines, remove continuum, and measure 4 lines: Hdelta(1), Hgamma(2), Hbeta(3) and Halpha(4) by default.
+# Emision lines spectra analyser
+Python script to analyse a set of spectra, extract absortion and emission lines, remove continuum, and measure 4 lines: Hdelta(1), Hgamma(2), Hbeta(3) and Halpha(4) by default.
 Wavelenght limited from 4000 to 7000 Angstrom by default.
 Dust extintion removal (redden).
 Plot graphs and texts report for each spectra.
@@ -20,18 +20,18 @@ Install with:
 
 ## Script
 Run with:
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits`
-`python3 display_fits_spectra_advance.py --datPath /V5114Sgr/dat --datSeparator "  "`
+`python3 emision_lines_spectra_analyser.py --path ./V5114Sgr/fits`
+`python3 emision_lines_spectra_analyser.py --datPath /V5114Sgr/dat --datSeparator "  "`
 
 Adding debug flag:
-`python3 display_fits_spectra_advance.py --debug --path ./V5114Sgr/fits`
+`python3 emision_lines_spectra_analyser.py --debug --path ./V5114Sgr/fits`
 
 Only one flag:
-`python3 display_fits_spectra_advance.py --only-one --path ./V5114Sgr/fits`
+`python3 emision_lines_spectra_analyser.py --only-one --path ./V5114Sgr/fits`
 
 Dust extintion:
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits --ebv 0.6 --rv 3.2 --model CCM89`
-`python3 display_fits_spectra_advance.py --datPath ./V5114Sgr/dat --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89`
+`python3 emision_lines_spectra_analyser.py --path ./V5114Sgr/fits --ebv 0.6 --rv 3.2 --model CCM89`
+`python3 emision_lines_spectra_analyser.py --datPath ./V5114Sgr/dat --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89`
 
 Wavelenght limits
 `--wavelenghtLowerLimit 4000`
@@ -46,11 +46,11 @@ Advanced parameters:
 `--histrogramStDevPercent 0.5`
 `--folderSuffix test001`
 
-`python3 display_fits_spectra_advance.py --path ./V5114Sgr/fits --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -angstrom1-std0.3`
+`python3 emision_lines_spectra_analyser.py --path ./V5114Sgr/fits --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -angstrom1-std0.3`
 
-`python3 display_fits_spectra_advance.py --datPath ./V5114Sgr/dat  --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89 --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -ebc0.6-rv3.2-angstrom1-std0.3`
+`python3 emision_lines_spectra_analyser.py --datPath ./V5114Sgr/dat  --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89 --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -ebc0.6-rv3.2-angstrom1-std0.3`
 
-`python3 display_fits_spectra_advance.py --datPath ./V5114Sgr/dat-days  --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89 --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -ebc0.6-rv3.2-angstrom1-std0.3`
+`python3 emision_lines_spectra_analyser.py --datPath ./V5114Sgr/dat-days  --datSeparator "  " --ebv 0.6 --rv 3.2 --model CCM89 --angstromIncrement 1 --histogramStDevPercent 0.3 --folderSuffix -ebc0.6-rv3.2-angstrom1-std0.3`
 
 ## OSX
 Download pip:
