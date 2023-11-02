@@ -1123,6 +1123,16 @@ def main(argv):
             plt.savefig(output_path + filename + '.all_deblended_lines.png')
             plt.clf()
 
+            # Generate another plot to compare the original deredden spectrum with the one without lines
+            fig, ax = plt.subplots()
+            fig.set_figwidth(10)
+            fig.set_figheight(7)
+            ax.plot(spec.wavelength, spec.flux, label = 'Original', color='y', linestyle='dashed')
+            ax.plot(spec.wavelength, spec.flux - all_lines, label = 'Processed', color='c', linestyle='dashed')
+            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+            plt.savefig(output_path + filename + '.processed_comparission.png')
+            plt.clf()
+            
             # Finally save the processed spectra to file
             np.savetxt(output_path + '/processed/' + filename + '.processed.dat', np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
 
