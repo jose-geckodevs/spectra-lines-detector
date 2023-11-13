@@ -37,7 +37,7 @@ Wavelenght limits
 `--wavelenghtLowerLimit 4000`
 `--wavelenghtUpperLimit 7000`
 
-Advanced parameters:
+Advanced parameters (use a centroid value of zero to ignore a line):
 `--l1centroid 4102 --l1label Hdelta`
 `--l2centroid 4341 --l2label Hgamma`
 `--l3centroid 4861 --l3label Hbeta`
