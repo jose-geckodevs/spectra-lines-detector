@@ -1354,8 +1354,6 @@ def main(argv):
                     all_lines = all_lines + fluxHd_deblended_interpolated
                 else:
                     all_lines = fluxHd_deblended_interpolated
-
-            #all_lines = fluxHa_deblended_interpolated + fluxHb_deblended_interpolated + fluxHg_deblended_interpolated + fluxHd_deblended_interpolated
             
             fig, ax = plt.subplots()
             fig.set_figwidth(10)
