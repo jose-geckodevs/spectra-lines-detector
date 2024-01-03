@@ -11,6 +11,8 @@ from specutils.manipulation import noise_region_uncertainty
 from specutils.fitting import find_lines_threshold
 from specutils.fitting import find_lines_derivative
 from specutils.fitting import estimate_line_parameters
+from specutils.fitting import fit_lines
+from astropy.modeling import models
 from specutils.manipulation import extract_region
 from specutils.analysis import centroid, fwhm, line_flux, equivalent_width
 from dust_extinction.averages import *
@@ -78,14 +80,14 @@ def reduce_sorted_fits_array_by_filename(item: list):
 def reduce_sorted_fits_array_by_date(item: list):
     return item[1]
 
-def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D):
+def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
     """Deprecated"""
     _padding = 50
     _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
-    _fluxData = line_flux(_spec_norm, regions = _regions)
-    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fluxData = line_flux(_spec_flux, regions = _regions)
+    _fwhmData = fwhm(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_norm, regions = _regions)
+    _centroidData = centroid(_spec_flux, regions = _regions)
 
     return _fluxData, _fwhmData, _equivalentWidthData, _centroidData, _padding
 
@@ -97,7 +99,7 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
     _regions = []
     while(_padding < 100):
         _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
-        _fwhmData = fwhm(_spec_norm, regions = _regions)
+        _fwhmData = fwhm(_spec_flux, regions = _regions)
         _indexLeftFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _padding)
         _indexRightFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _padding)
         if ((_spec_flux.flux[_indexLeftFlux] < 0 or _spec_flux.flux[_indexRightFlux] < 0) and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
@@ -107,7 +109,7 @@ def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Sp
 
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_norm, regions = _regions)
+    _centroidData = centroid(_spec_flux, regions = _regions)
 
     if (_padding >= 100):
         _padding = 95
@@ -122,7 +124,7 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
     _regions = []
     while(_leftPadding < 100):
         _regions = [SpectralRegion((_center - _leftPadding) * u.AA, _center * u.AA )]
-        _fwhmData = fwhm(_spec_norm, regions = _regions)
+        _fwhmData = fwhm(_spec_flux, regions = _regions)
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
         if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
@@ -131,7 +133,7 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
 
     while(_rightPadding < 100):
         _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
-        _fwhmData = fwhm(_spec_norm, regions = _regions)
+        _fwhmData = fwhm(_spec_flux, regions = _regions)
         _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
         if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
             break
@@ -140,7 +142,7 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
 
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_norm, regions = _regions)
+    _centroidData = centroid(_spec_flux, regions = _regions)
 
     if (_leftPadding >= 100):
         _leftPadding = 95
@@ -149,6 +151,7 @@ def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spe
     return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
 def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
+    """Deprecated"""
     _leftPadding = _angstromIncrement
     _rightPadding = _angstromIncrement
     _regions = []
@@ -194,16 +197,17 @@ def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _sp
         _rightPadding = 200 - _angstromIncrement
     _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
 
-    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fwhmData = fwhm(_spec_flux, regions = _regions)
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_norm, regions = _regions)
+    _centroidData = centroid(_spec_flux, regions = _regions)
 
     # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
 
     return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
 
 def measure_line_continuum_simetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
+    """Deprecated"""
     _padding = _angstromIncrement
     _regions = []
 
@@ -236,10 +240,10 @@ def measure_line_continuum_simetric(_center: float, _spec_norm: Spectrum1D, _spe
         _padding = 200 - _angstromIncrement
     _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
 
-    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fwhmData = fwhm(_spec_flux, regions = _regions)
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_norm, regions = _regions)
+    _centroidData = centroid(_spec_flux, regions = _regions)
 
     # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
 
@@ -253,8 +257,6 @@ def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D
 
     _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
 
-    #median = statistics.median(_flux.value)
-    #sd = statistics.stdev(_flux.value)
     # Best calculate median from whole spectrum
     median = statistics.median(_spec_flux.flux.value)
     sd = statistics.stdev(_spec_flux.flux.value)
@@ -298,10 +300,10 @@ def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D
         _padding = _rightPadding
     _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
 
-    _fwhmData = fwhm(_spec_norm, regions = _regions)
+    _fwhmData = fwhm(_spec_flux, regions = _regions)
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_norm, regions = _regions)
+    _centroidData = centroid(_spec_flux, regions = _regions)
 
     # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
 
@@ -496,16 +498,21 @@ def main(argv):
         else:
             evolutionPlaneLog = False
             
+        numLines = 0
         csv = open(output_path + 'lines_measurements.csv', 'w')
         csv.write('Spectra file;')
         if (Halpha > 0):
             csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' deblended flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
+            numLines = numLines + 1
         if (Hbeta > 0):
             csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' deblended flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
+            numLines = numLines + 1
         if (Hgamma > 0):
             csv.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' deblended flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
+            numLines = numLines + 1
         if (Hdelta > 0):
             csv.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' deblended flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm;')
+            numLines = numLines + 1
         csv.write('\n')
 
         counter = 0
@@ -963,6 +970,7 @@ def main(argv):
             if (Halpha > 0):
                 ax1.axvline(x=Halpha-haCalculations[4], color='r')
                 ax1.axvline(x=Halpha+haCalculations[5], color='r')
+                ax1.axvline(x=Halpha, color='y', linestyle='dashed')
 
                 haValues = np.array([HalphaLabel, fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
 
@@ -972,6 +980,7 @@ def main(argv):
             if (Hbeta > 0):
                 ax2.axvline(x=Hbeta-hbCalculations[4], color='r')
                 ax2.axvline(x=Hbeta+hbCalculations[5], color='r')
+                ax2.axvline(x=Hbeta, color='y', linestyle='dashed')
 
                 hbValues = np.array([HbetaLabel, fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
 
@@ -981,6 +990,7 @@ def main(argv):
             if (Hgamma > 0):
                 ax3.axvline(x=Hgamma-hgCalculations[4], color='r')
                 ax3.axvline(x=Hgamma+hgCalculations[5], color='r')
+                ax3.axvline(x=Hgamma, color='y', linestyle='dashed')
                 
                 hgValues = np.array([HgammaLabel, fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
 
@@ -990,6 +1000,7 @@ def main(argv):
             if (Hdelta > 0):
                 ax4.axvline(x=Hdelta-hdCalculations[4], color='r')
                 ax4.axvline(x=Hdelta+hdCalculations[5], color='r')
+                ax4.axvline(x=Hdelta, color='y', linestyle='dashed')
 
                 hdValues = np.array([HdeltaLabel, fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
 
@@ -1047,7 +1058,7 @@ def main(argv):
             maxs = []
 
             if (Halpha > 0):
-                fluxHa, wavelengthHa = limit_spectra_array(Halpha - haCalculations[4], Halpha + haCalculations[5], spec_flux)
+                fluxHa, wavelengthHa = limit_spectra_array(Halpha - maxMargin, Halpha + maxMargin, spec_flux)
                 
                 # Find the max flux value at rest frequecy, so the reference value of each line
                 maxHalpha = fluxHa[find_nearest_index(wavelengthHa.value, Halpha)].value
@@ -1065,7 +1076,7 @@ def main(argv):
                 ys.append(0)
 
             if (Hbeta > 0):
-                fluxHb, wavelengthHb = limit_spectra_array(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], spec_flux)
+                fluxHb, wavelengthHb = limit_spectra_array(Hbeta - maxMargin, Hbeta + maxMargin, spec_flux)
 
                 # Find the max flux value at rest frequecy, so the reference value of each line
                 maxHbeta = fluxHb[find_nearest_index(wavelengthHb.value, Hbeta)].value
@@ -1083,7 +1094,7 @@ def main(argv):
                 ys.append(0)
 
             if (Hgamma > 0):
-                fluxHg, wavelengthHg = limit_spectra_array(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], spec_flux)
+                fluxHg, wavelengthHg = limit_spectra_array(Hgamma - maxMargin, Hgamma + maxMargin, spec_flux)
 
                 # Find the max flux value at rest frequecy, so the reference value of each line
                 maxHgamma = fluxHg[find_nearest_index(wavelengthHg.value, Hgamma)].value
@@ -1101,7 +1112,7 @@ def main(argv):
                 ys.append(0)
 
             if (Hdelta > 0):
-                fluxHd, wavelengthHd = limit_spectra_array(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], spec_flux)
+                fluxHd, wavelengthHd = limit_spectra_array(Hdelta - maxMargin, Hdelta + maxMargin, spec_flux)
 
                 # Find the max flux value at rest frequecy, so the reference value of each line
                 maxHdelta = fluxHd[find_nearest_index(wavelengthHd.value, Hdelta)].value
@@ -1129,16 +1140,31 @@ def main(argv):
             for index, value in enumerate(range_x_axis):
                 values_median = []
                 if (Halpha > 0):
-                    values_median.append(ys[0][find_nearest_index(xs[0], value)])
+                    _nearest_ha = find_nearest_index(xs[0], value)
+                    if (_nearest_ha > 0 and _nearest_ha < len(xs[0]) - 1) :
+                        values_median.append(ys[0][_nearest_ha])
                 if (Hbeta > 0):
-                    values_median.append(ys[1][find_nearest_index(xs[1], value)])
+                    _nearest_hb = find_nearest_index(xs[1], value)
+                    if (_nearest_hb > 0 and _nearest_hb < len(xs[1]) - 1) :
+                        values_median.append(ys[1][_nearest_hb])
                 if (Hgamma > 0):
-                    values_median.append(ys[2][find_nearest_index(xs[2], value)])
+                    _nearest_hg = find_nearest_index(xs[2], value)
+                    if (_nearest_hg > 0 and _nearest_hg < len(xs[2]) - 1) :
+                        values_median.append(ys[2][_nearest_hg])
                 if (Hdelta > 0):
-                    values_median.append(ys[3][find_nearest_index(xs[3], value)])
-
-                median_y_axis.append(statistics.median(values_median))
-                stdev_y_axis.append(statistics.stdev(values_median))
+                    _nearest_hd = find_nearest_index(xs[3], value)
+                    if (_nearest_hd > 0 and _nearest_hd < len(xs[3]) - 1) :
+                        values_median.append(ys[3][_nearest_hd])
+                
+                if (len(values_median) > 1):
+                    median_y_axis.append(statistics.median(values_median))
+                    stdev_y_axis.append(statistics.stdev(values_median))
+                elif (len(values_median) == 1):
+                    median_y_axis.append(values_median[0])
+                    stdev_y_axis.append(0.0)
+                else:
+                    median_y_axis.append(0.0)
+                    stdev_y_axis.append(0.0)
             
             ax.plot(range_x_axis, median_y_axis, label = 'Median', color='y', linestyle='dashed')
             symmetric_x_axis, symmetric_y_axis = convert_symmetric_velocities(range_x_axis, median_y_axis)
@@ -1166,7 +1192,7 @@ def main(argv):
                 restored_median_xs.append(0)
                 restored_median_ys.append(0)
 
-            if (Hgamma > 0):
+            if (Hgamma > 0 ):
                 restored_median_xs.append(((range_x_axis / 300000) * Hgamma) + Hgamma)
                 restored_median_ys.append(np.array(median_y_axis) * maxHgamma)
             else:
@@ -1180,6 +1206,46 @@ def main(argv):
                 restored_median_xs.append(0)
                 restored_median_ys.append(0)
 
+            # We need to check all lines are actually there and are from the same component, otherwise ignore all them
+            # TODO. This does not work properly, check fit_lines with gaussian model: https://specutils.readthedocs.io/en/stable/fitting.html
+            _ignoreDeblendingHa, _ignoreDeblendingHb, _ignoreDeblendingHg, _ignoreDeblendingHd  = False, False, False, False
+            if (Halpha > 0):
+                _compare_fluxHa_interpolated = np.interp(range_x_axis, xs[0], ys[0])
+                _compare_ha = np.subtract(_compare_fluxHa_interpolated, restored_median_ys[0])
+                _compare_ha_avg = abs(np.average(_compare_ha))
+                _percentage_ha = (_compare_ha_avg / np.max(_compare_fluxHa_interpolated))
+                #if (_percentage_ha > HistogramStDevPercent):
+                #    _ignoreDeblendingHa = True
+                #print(_compare_ha_avg, np.max(_compare_fluxHa_interpolated), _percentage_ha)
+
+            if (Hbeta > 0):
+                _compare_fluxHb_interpolated = np.interp(range_x_axis, xs[1], ys[1])
+                _compare_hb = np.subtract(_compare_fluxHb_interpolated, restored_median_ys[1])
+                _compare_hb_avg = abs(np.average(_compare_hb))
+                _percentage_hb = (_compare_hb_avg / np.max(_compare_fluxHb_interpolated))
+                #if (_percentage_hb > HistogramStDevPercent):
+                #    _ignoreDeblendingHb = True
+                #print(_compare_hb_avg, np.max(_compare_fluxHb_interpolated), _percentage_hb)
+
+            if (Hgamma > 0):
+                _compare_fluxHg_interpolated = np.interp(range_x_axis, xs[2], ys[2])
+                _compare_hg = np.subtract(_compare_fluxHg_interpolated, restored_median_ys[2])
+                _compare_hg_avg = abs(np.average(_compare_hg))
+                _percentage_hg = (_compare_hg_avg / np.max(_compare_fluxHg_interpolated))
+                #if (_percentage_hg > HistogramStDevPercent):
+                #    _ignoreDeblendingHg = True
+                #print(_compare_hg_avg, np.max(_compare_fluxHg_interpolated), _percentage_hg)
+
+            if (Hdelta > 0):
+                _compare_fluxHd_interpolated = np.interp(range_x_axis, xs[3], ys[3])
+                _compare_hd = np.subtract(_compare_fluxHd_interpolated, restored_median_ys[3])
+                _compare_hd_avg = abs(np.average(_compare_hd))
+                _percentage_hd = (_compare_hd_avg / np.max(_compare_fluxHd_interpolated))
+                #if (_percentage_hd > HistogramStDevPercent):
+                #    _ignoreDeblendingHd = True
+                #print(_compare_hd_avg, np.max(_compare_fluxHd_interpolated), _percentage_hd)
+    
+            # Deblending process
             fig, ax = plt.subplots()
             fig.set_figwidth(15)
             fig.set_figheight(5)
@@ -1196,19 +1262,39 @@ def main(argv):
             gs = fig.add_gridspec(1,columns)
             
             columns = 0
+            haFitCalculations = [0,0,0,0,0,0]
+            hbFitCalculations = [0,0,0,0,0,0]
+            hgFitCalculations = [0,0,0,0,0,0]
+            hdFitCalculations = [0,0,0,0,0,0]
             if (Halpha > 0):
                 ax1 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
 
                 ax1.set_xlabel(HalphaLabel)
-
-                fluxHa_interpolated = np.interp(wavelengthHa.value, restored_median_xs[0], restored_median_ys[0])
-                fluxHa_deblended = (fluxHa.value - (fluxHa.value - fluxHa_interpolated)) * fluxHa.unit
-
                 ax1.plot(wavelengthHa, fluxHa, label = 'l')
                 ax1.plot(restored_median_xs[0], restored_median_ys[0], label = 'm')
-                ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'l - m')
-                ax1.plot(wavelengthHa, fluxHa_deblended, label = 'd')
+                ax1.axvline(x=Halpha, color='m', linestyle='dashed')
+
+                # Try fitting a gaussian model on the line
+                _spectrum = Spectrum1D(flux=fluxHa, spectral_axis=wavelengthHa)
+                _indexFlux = find_nearest_index(wavelengthHa.value, Halpha)
+                _g_init = models.Gaussian1D(amplitude=fluxHa[_indexFlux], mean=Halpha * wavelengthHa.unit, stddev=statistics.stdev(wavelengthHa.value) * wavelengthHa.unit)
+                _g_fit = fit_lines(_spectrum, _g_init)
+                _y_fit = _g_fit(wavelengthHa)
+                ax1.plot(wavelengthHa, _y_fit, label="f", c="y")
+
+                if (_y_fit):
+                    _spectrum_ha_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHa)
+                    _y_continuum_interpolated = np.interp(wavelengthHa, spec.wavelength, y_continuum_fitted)
+                    _spectrum_ha_fit_norm = (_spectrum_ha_fit + _y_continuum_interpolated) / _y_continuum_interpolated
+                    haFitCalculations = measure_line_continuum_bigger_padding(Halpha, _spectrum_ha_fit_norm, _spectrum_ha_fit, AngstromIncrement, HistogramStDevPercent)
+
+                # Calculate and plot deblending process
+                if (not _ignoreDeblendingHa):
+                    fluxHa_interpolated = np.interp(wavelengthHa.value, restored_median_xs[0], restored_median_ys[0])
+                    fluxHa_deblended = (fluxHa.value - (fluxHa.value - fluxHa_interpolated)) * fluxHa.unit
+                    ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'l - m')
+                    ax1.plot(wavelengthHa, fluxHa_deblended, label = 'd')
             
             if (Hbeta > 0):
                 ax2 = fig.add_subplot(gs[0, columns])
@@ -1216,14 +1302,30 @@ def main(argv):
 
                 ax2.set_xlabel(HbetaLabel)
                 ax2.set_ylabel('')
-
-                fluxHb_interpolated = np.interp(wavelengthHb.value, restored_median_xs[1], restored_median_ys[1])
-                fluxHb_deblended = (fluxHb.value - (fluxHb.value - fluxHb_interpolated)) * fluxHb.unit
-
                 ax2.plot(wavelengthHb, fluxHb, label = 'l')
                 ax2.plot(restored_median_xs[1], restored_median_ys[1], label = 'm')
-                ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'l - m')
-                ax2.plot(wavelengthHb, fluxHb_deblended, label = 'd')
+                ax2.axvline(x=Hbeta, color='m', linestyle='dashed')
+
+                # Try fitting a gaussian model on the line
+                _spectrum = Spectrum1D(flux=fluxHb, spectral_axis=wavelengthHb)
+                _indexFlux = find_nearest_index(wavelengthHb.value, Hbeta)
+                _g_init = models.Gaussian1D(amplitude=fluxHb[_indexFlux], mean=Hbeta * wavelengthHb.unit, stddev=statistics.stdev(wavelengthHb.value) * wavelengthHb.unit)
+                _g_fit = fit_lines(_spectrum, _g_init)
+                _y_fit = _g_fit(wavelengthHb)
+                ax2.plot(wavelengthHb, _y_fit, label="f", c="y")
+
+                if (_y_fit):
+                    _spectrum_hb_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHb)
+                    _y_continuum_interpolated = np.interp(wavelengthHb, spec.wavelength, y_continuum_fitted)
+                    _spectrum_hb_fit_norm = (_spectrum_hb_fit + _y_continuum_interpolated) / _y_continuum_interpolated
+                    hbFitCalculations = measure_line_continuum_bigger_padding(Hbeta, _spectrum_hb_fit_norm, _spectrum_hb_fit, AngstromIncrement, HistogramStDevPercent)
+
+                # Calculate and plot deblending process
+                if (not _ignoreDeblendingHb):
+                    fluxHb_interpolated = np.interp(wavelengthHb.value, restored_median_xs[1], restored_median_ys[1])
+                    fluxHb_deblended = (fluxHb.value - (fluxHb.value - fluxHb_interpolated)) * fluxHb.unit
+                    ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'l - m')
+                    ax2.plot(wavelengthHb, fluxHb_deblended, label = 'd')
             
             if (Hgamma > 0):
                 ax3 = fig.add_subplot(gs[0, columns])
@@ -1231,14 +1333,30 @@ def main(argv):
 
                 ax3.set_xlabel(HgammaLabel)
                 ax3.set_ylabel('')
-
-                fluxHg_interpolated = np.interp(wavelengthHg.value, restored_median_xs[2], restored_median_ys[2])
-                fluxHg_deblended = (fluxHg.value - (fluxHg.value - fluxHg_interpolated)) * fluxHg.unit
-
                 ax3.plot(wavelengthHg, fluxHg, label = 'l')
                 ax3.plot(restored_median_xs[2], restored_median_ys[2], label = 'm')
-                ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'l - m')
-                ax3.plot(wavelengthHg, fluxHg_deblended, label = 'd')
+                ax3.axvline(x=Hgamma, color='m', linestyle='dashed')
+
+                # Try fitting a gaussian model on the line
+                _spectrum = Spectrum1D(flux=fluxHg, spectral_axis=wavelengthHg)
+                _indexFlux = find_nearest_index(wavelengthHg.value, Hgamma)
+                _g_init = models.Gaussian1D(amplitude=fluxHg[_indexFlux], mean=Hgamma * wavelengthHg.unit, stddev=statistics.stdev(wavelengthHg.value) * wavelengthHg.unit)
+                _g_fit = fit_lines(_spectrum, _g_init)
+                _y_fit = _g_fit(wavelengthHg)
+                ax3.plot(wavelengthHg, _y_fit, label="f", c="y")
+
+                if (_y_fit):
+                    _spectrum_hg_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHg)
+                    _y_continuum_interpolated = np.interp(wavelengthHg, spec.wavelength, y_continuum_fitted)
+                    _spectrum_hg_fit_norm = (_spectrum_hg_fit + _y_continuum_interpolated) / _y_continuum_interpolated
+                    hgFitCalculations = measure_line_continuum_bigger_padding(Hgamma, _spectrum_hg_fit_norm, _spectrum_hg_fit, AngstromIncrement, HistogramStDevPercent)
+
+                # Calculate and plot deblending process
+                if (not _ignoreDeblendingHg):
+                    fluxHg_interpolated = np.interp(wavelengthHg.value, restored_median_xs[2], restored_median_ys[2])
+                    fluxHg_deblended = (fluxHg.value - (fluxHg.value - fluxHg_interpolated)) * fluxHg.unit
+                    ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'l - m')
+                    ax3.plot(wavelengthHg, fluxHg_deblended, label = 'd')
             
             if (Hdelta > 0):
                 ax4 = fig.add_subplot(gs[0, columns])
@@ -1246,21 +1364,37 @@ def main(argv):
 
                 ax4.set_xlabel(HdeltaLabel)
                 ax4.set_ylabel('')
-
-                fluxHd_interpolated = np.interp(wavelengthHd.value, restored_median_xs[3], restored_median_ys[3])
-                fluxHd_deblended = (fluxHd.value - (fluxHd.value - fluxHd_interpolated)) * fluxHd.unit
-
                 ax4.plot(wavelengthHd, fluxHd, label = 'l')
                 ax4.plot(restored_median_xs[3], restored_median_ys[3], label = 'm')
-                ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'l - m')
-                ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
+                ax4.axvline(x=Hdelta, color='m', linestyle='dashed')
+
+                # Try fitting a gaussian model on the line
+                _spectrum = Spectrum1D(flux=fluxHd, spectral_axis=wavelengthHd)
+                _indexFlux = find_nearest_index(wavelengthHd.value, Hdelta)
+                _g_init = models.Gaussian1D(amplitude=fluxHd[_indexFlux], mean=Hdelta * wavelengthHd.unit, stddev=statistics.stdev(wavelengthHd.value) * wavelengthHd.unit)
+                _g_fit = fit_lines(_spectrum, _g_init)
+                _y_fit = _g_fit(wavelengthHd)
+                ax4.plot(wavelengthHd, _y_fit, label="f", c="y")
+
+                if (_y_fit):
+                    _spectrum_hd_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHd)
+                    _y_continuum_interpolated = np.interp(wavelengthHd, spec.wavelength, y_continuum_fitted)
+                    _spectrum_hd_fit_norm = (_spectrum_hd_fit + _y_continuum_interpolated) / _y_continuum_interpolated
+                    hdFitCalculations = measure_line_continuum_bigger_padding(Hdelta, _spectrum_hd_fit_norm, _spectrum_hd_fit, AngstromIncrement, HistogramStDevPercent)
+
+                # Calculate and plot deblending process
+                if (not _ignoreDeblendingHd):
+                    fluxHd_interpolated = np.interp(wavelengthHd.value, restored_median_xs[3], restored_median_ys[3])
+                    fluxHd_deblended = (fluxHd.value - (fluxHd.value - fluxHd_interpolated)) * fluxHd.unit
+                    ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'l - m')
+                    ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
 
             plt.legend()
             plt.savefig(output_path + filename + '.lines_deblending.png')
             plt.clf()
 
-            # Recalculate the spectra substracting the deblended lines to the original (dereddem) spectra
-            if (Halpha > 0):
+            # Recalculate the spectra substracting the deblended lines to the original (deredden) spectra
+            if (Halpha > 0 and not _ignoreDeblendingHa):
                 fluxHa_deblended_interpolated = np.interp(spec.wavelength, wavelengthHa, fluxHa_deblended)
                 fluxHa_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHa_deblended_interpolated, meta=meta)
 
@@ -1279,7 +1413,7 @@ def main(argv):
             else:
                 fluxHa_deblended_interpolated = []
             
-            if (Hbeta > 0):
+            if (Hbeta > 0 and not _ignoreDeblendingHb):
                 fluxHb_deblended_interpolated = np.interp(spec.wavelength, wavelengthHb, fluxHb_deblended)
                 fluxHb_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHb_deblended_interpolated, meta=meta)
 
@@ -1298,7 +1432,7 @@ def main(argv):
             else:
                 fluxHb_deblended_interpolated = []
 
-            if (Hgamma > 0):    
+            if (Hgamma > 0 and not _ignoreDeblendingHg):    
                 fluxHg_deblended_interpolated = np.interp(spec.wavelength, wavelengthHg, fluxHg_deblended)
                 fluxHg_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHg_deblended_interpolated, meta=meta)
 
@@ -1317,7 +1451,7 @@ def main(argv):
             else:
                 fluxHg_deblended_interpolated = []
             
-            if (Hdelta > 0):
+            if (Hdelta > 0 and not _ignoreDeblendingHd):
                 fluxHd_deblended_interpolated = np.interp(spec.wavelength, wavelengthHd, fluxHd_deblended)
                 fluxHd_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHd_deblended_interpolated, meta=meta)
 
@@ -1337,19 +1471,19 @@ def main(argv):
                 fluxHd_deblended_interpolated = []
 
             all_lines = []
-            if (Halpha > 0):
+            if (Halpha > 0 and not _ignoreDeblendingHa):
                     all_lines = fluxHa_deblended_interpolated
-            if (Hbeta > 0):
+            if (Hbeta > 0 and not _ignoreDeblendingHb):
                 if len(all_lines) > 0:
                     all_lines = all_lines + fluxHb_deblended_interpolated
                 else:
                     all_lines = fluxHb_deblended_interpolated
-            if (Hgamma > 0):
+            if (Hgamma > 0 and not _ignoreDeblendingHg):
                 if len(all_lines) > 0:
                     all_lines = all_lines + fluxHg_deblended_interpolated
                 else:
                     all_lines = fluxHg_deblended_interpolated
-            if (Hdelta > 0):
+            if (Hdelta > 0 and not _ignoreDeblendingHd):
                 if len(all_lines) > 0:
                     all_lines = all_lines + fluxHd_deblended_interpolated
                 else:
@@ -1376,39 +1510,55 @@ def main(argv):
             # Finally save the processed spectra to file
             np.savetxt(output_path + '/processed/' + filename, np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
 
-            # Calculate flux of deblended lines
-            if (Halpha > 0):
-                spec_ha_deblended = Spectrum1D(spectral_axis=wavelengthHa, flux=fluxHa_deblended, meta=meta)
-                haFluxDataDeblended = line_flux(spec_ha_deblended, regions = [SpectralRegion((Halpha - haCalculations[4]) * u.AA, (Halpha + haCalculations[5]) * u.AA )])
-                haValues = np.insert(haValues, 2, haFluxDataDeblended[0].value)
-            else:
-                haValues = []
+            # Calculate values of deblended lines
+            haDeblendedCalculations = [0,0,0,0,0,0]
+            hbDeblendedCalculations = [0,0,0,0,0,0]
+            hgDeblendedCalculations = [0,0,0,0,0,0]
+            hdDeblendedCalculations = [0,0,0,0,0,0]
+            if (Halpha > 0 and not _ignoreDeblendingHa):
+                _spectrum_ha_deblended = Spectrum1D(spectral_axis=wavelengthHa, flux=fluxHa_deblended, meta=meta)
+                _y_continuum_interpolated = np.interp(wavelengthHa, spec.wavelength, y_continuum_fitted)
+                _spectrum_ha_deblended_norm = (_spectrum_ha_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
+                haDeblendedCalculations = measure_line_continuum_bigger_padding(Halpha, _spectrum_ha_deblended_norm, _spectrum_ha_deblended, AngstromIncrement, HistogramStDevPercent)
+                haFluxDataDeblended = [haDeblendedCalculations[0]]
 
-            if (Hbeta > 0):    
-                spec_hb_deblended = Spectrum1D(spectral_axis=wavelengthHb, flux=fluxHb_deblended, meta=meta)
-                hbFluxDataDeblended = line_flux(spec_hb_deblended, regions = [SpectralRegion((Hbeta - hbCalculations[4]) * u.AA, (Hbeta + hbCalculations[5]) * u.AA )])
-                hbValues = np.insert(hbValues, 2, hbFluxDataDeblended[0].value)
-            else:
-                hbValues = []
+            if (Hbeta > 0 and not _ignoreDeblendingHb):    
+                _spectrum_hb_deblended = Spectrum1D(spectral_axis=wavelengthHb, flux=fluxHb_deblended, meta=meta)
+                _y_continuum_interpolated = np.interp(wavelengthHb, spec.wavelength, y_continuum_fitted)
+                _spectrum_hb_deblended_norm = (_spectrum_hb_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
+                hbDeblendedCalculations = measure_line_continuum_bigger_padding(Hbeta, _spectrum_hb_deblended_norm, _spectrum_hb_deblended, AngstromIncrement, HistogramStDevPercent)
+                hbFluxDataDeblended = [hbDeblendedCalculations[0]]
 
-            if (Hgamma > 0):
-                spec_hg_deblended = Spectrum1D(spectral_axis=wavelengthHg, flux=fluxHg_deblended, meta=meta)
-                hgFluxDataDeblended = line_flux(spec_hg_deblended, regions = [SpectralRegion((Hgamma - hgCalculations[4]) * u.AA, (Hgamma + hgCalculations[5]) * u.AA )])
-                hgValues = np.insert(hgValues, 2, hgFluxDataDeblended[0].value)
-            else:
-                hgValues = []
+            if (Hgamma > 0 and not _ignoreDeblendingHg):
+                _spectrum_hg_deblended = Spectrum1D(spectral_axis=wavelengthHg, flux=fluxHg_deblended, meta=meta)
+                _y_continuum_interpolated = np.interp(wavelengthHg, spec.wavelength, y_continuum_fitted)
+                _spectrum_hg_deblended_norm = (_spectrum_hg_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
+                hgDeblendedCalculations = measure_line_continuum_bigger_padding(Hgamma, _spectrum_hg_deblended_norm, _spectrum_hg_deblended, AngstromIncrement, HistogramStDevPercent)
+                hgFluxDataDeblended = [hgDeblendedCalculations[0]]
 
-            if (Hdelta > 0):
-                spec_hd_deblended = Spectrum1D(spectral_axis=wavelengthHd, flux=fluxHd_deblended, meta=meta)
-                hdFluxDataDeblended = line_flux(spec_hd_deblended, regions = [SpectralRegion((Hdelta - hdCalculations[4]) * u.AA, (Hdelta + hdCalculations[5]) * u.AA )])
-                hdValues = np.insert(hdValues, 2, hdFluxDataDeblended[0].value)
-            else:
-                hdValues = []
+            if (Hdelta > 0 and not _ignoreDeblendingHd):
+                _spectrum_hd_deblended = Spectrum1D(spectral_axis=wavelengthHd, flux=fluxHd_deblended, meta=meta)
+                _y_continuum_interpolated = np.interp(wavelengthHd, spec.wavelength, y_continuum_fitted)
+                _spectrum_hd_deblended_norm = (_spectrum_hd_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
+                hdDeblendedCalculations = measure_line_continuum_bigger_padding(Hdelta, _spectrum_hd_deblended_norm, _spectrum_hd_deblended, AngstromIncrement, HistogramStDevPercent)
+                hdFluxDataDeblended = [hdDeblendedCalculations[0]]
+
+            # Add deblended values to report
+            haValues = np.append(haValues, [haDeblendedCalculations[0].value, haDeblendedCalculations[1].value, haDeblendedCalculations[2].value, haDeblendedCalculations[3].value])
+            hbValues = np.append(hbValues, [hbDeblendedCalculations[0].value, hbDeblendedCalculations[1].value, hbDeblendedCalculations[2].value, hbDeblendedCalculations[3].value])
+            hgValues = np.append(hgValues, [hgDeblendedCalculations[0].value, hgDeblendedCalculations[1].value, hgDeblendedCalculations[2].value, hgDeblendedCalculations[3].value])
+            hdValues = np.append(hdValues, [hdDeblendedCalculations[0].value, hdDeblendedCalculations[1].value, hdDeblendedCalculations[2].value, hdDeblendedCalculations[3].value])
+
+            # Add model fit values to report
+            haValues = np.append(haValues, [haFitCalculations[0].value, haFitCalculations[1].value, haFitCalculations[2].value, haFitCalculations[3].value])
+            hbValues = np.append(hbValues, [hbFitCalculations[0].value, hbFitCalculations[1].value, hbFitCalculations[2].value, hbFitCalculations[3].value])
+            hgValues = np.append(hgValues, [hgFitCalculations[0].value, hgFitCalculations[1].value, hgFitCalculations[2].value, hgFitCalculations[3].value])
+            hdValues = np.append(hdValues, [hdFitCalculations[0].value, hdFitCalculations[1].value, hdFitCalculations[2].value, hdFitCalculations[3].value])
             
             # Write report
             lines = np.array([haValues, hbValues, hgValues, hdValues])
             report.write('Lines analisys' + '\n')
-            report.write(tabulate(lines, headers=['Line','Flux','Deblended Flux', 'FWHM', 'Equivalent width', 'Centroid']) + '\n')
+            report.write(tabulate(lines, headers=['Line', 'Flux', 'FWHM', 'Equivalent width', 'Centroid', 'Flux deblended', 'FWHM deblended', 'Equivalent width deblended', 'Centroid deblended', 'Flux model', 'FWHM model', 'Equivalent width model', 'Centroid model']) + '\n')
             
             if (Halpha > 0):
                 report.write('* Units: ' + str(fluxData[0].unit))
@@ -1422,14 +1572,22 @@ def main(argv):
             report.write('\n')
 
             # Write spreadsheet
-            if (Halpha > 0):
+            if (Halpha > 0 and not _ignoreDeblendingHa):
                 csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(haFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
-            if (Hbeta > 0):
+            elif (Halpha > 0):
+                csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';;' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
+            if (Hbeta > 0 and not _ignoreDeblendingHb):
                 csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(hbFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
-            if (Hgamma > 0):
+            elif (Hbeta > 0):
+                csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';;' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
+            if (Hgamma > 0 and not _ignoreDeblendingHg):
                 csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(hgFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
-            if (Hdelta > 0):
+            elif (Hgamma > 0):
+                csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';;' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
+            if (Hdelta > 0 and not _ignoreDeblendingHd):
                 csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(hdFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
+            elif (Hdelta > 0):
+                csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';;' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
             csv.write('\n')
 
             # Close report
