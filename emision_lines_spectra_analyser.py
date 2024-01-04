@@ -309,6 +309,9 @@ def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D
 
     return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _padding, _padding
 
+def empty_measure_line_values():
+    return [u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0)]
+
 def print_help():
     print('display_fits_spectra_advance.py')
     print('         --debug')
@@ -935,22 +938,22 @@ def main(argv):
             if (Halpha > 0):
                 haCalculations = measure_line_continuum_bigger_padding(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             else:
-                haCalculations = [0,0,0,0,0,0]
+                haCalculations = empty_measure_line_values()
 
             if (Hbeta > 0):
                 hbCalculations = measure_line_continuum_bigger_padding(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             else:
-                hbCalculations = [0,0,0,0,0,0]
+                hbCalculations = empty_measure_line_values()
 
             if (Hgamma > 0):
                 hgCalculations = measure_line_continuum_bigger_padding(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             else:
-                hgCalculations = [0,0,0,0,0,0]
+                hgCalculations = empty_measure_line_values()
                 
             if (Hdelta > 0):
                 hdCalculations = measure_line_continuum_bigger_padding(Hdelta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             else:
-                hdCalculations = [0,0,0,0,0,0]
+                hdCalculations = empty_measure_line_values()
             
             fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
             fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
@@ -1262,10 +1265,10 @@ def main(argv):
             gs = fig.add_gridspec(1,columns)
             
             columns = 0
-            haFitCalculations = [0,0,0,0,0,0]
-            hbFitCalculations = [0,0,0,0,0,0]
-            hgFitCalculations = [0,0,0,0,0,0]
-            hdFitCalculations = [0,0,0,0,0,0]
+            haFitCalculations = empty_measure_line_values()
+            hbFitCalculations = empty_measure_line_values()
+            hgFitCalculations = empty_measure_line_values()
+            hdFitCalculations = empty_measure_line_values()
             if (Halpha > 0):
                 ax1 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
@@ -1283,7 +1286,7 @@ def main(argv):
                 _y_fit = _g_fit(wavelengthHa)
                 ax1.plot(wavelengthHa, _y_fit, label="f", c="y")
 
-                if (_y_fit):
+                if (np.sum(_y_fit) != 0):
                     _spectrum_ha_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHa)
                     _y_continuum_interpolated = np.interp(wavelengthHa, spec.wavelength, y_continuum_fitted)
                     _spectrum_ha_fit_norm = (_spectrum_ha_fit + _y_continuum_interpolated) / _y_continuum_interpolated
@@ -1314,7 +1317,7 @@ def main(argv):
                 _y_fit = _g_fit(wavelengthHb)
                 ax2.plot(wavelengthHb, _y_fit, label="f", c="y")
 
-                if (_y_fit):
+                if (np.sum(_y_fit) != 0):
                     _spectrum_hb_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHb)
                     _y_continuum_interpolated = np.interp(wavelengthHb, spec.wavelength, y_continuum_fitted)
                     _spectrum_hb_fit_norm = (_spectrum_hb_fit + _y_continuum_interpolated) / _y_continuum_interpolated
@@ -1345,7 +1348,7 @@ def main(argv):
                 _y_fit = _g_fit(wavelengthHg)
                 ax3.plot(wavelengthHg, _y_fit, label="f", c="y")
 
-                if (_y_fit):
+                if (np.sum(_y_fit) != 0):
                     _spectrum_hg_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHg)
                     _y_continuum_interpolated = np.interp(wavelengthHg, spec.wavelength, y_continuum_fitted)
                     _spectrum_hg_fit_norm = (_spectrum_hg_fit + _y_continuum_interpolated) / _y_continuum_interpolated
@@ -1376,7 +1379,7 @@ def main(argv):
                 _y_fit = _g_fit(wavelengthHd)
                 ax4.plot(wavelengthHd, _y_fit, label="f", c="y")
 
-                if (_y_fit):
+                if (np.sum(_y_fit) != 0):
                     _spectrum_hd_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHd)
                     _y_continuum_interpolated = np.interp(wavelengthHd, spec.wavelength, y_continuum_fitted)
                     _spectrum_hd_fit_norm = (_spectrum_hd_fit + _y_continuum_interpolated) / _y_continuum_interpolated
@@ -1511,10 +1514,10 @@ def main(argv):
             np.savetxt(output_path + '/processed/' + filename, np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
 
             # Calculate values of deblended lines
-            haDeblendedCalculations = [0,0,0,0,0,0]
-            hbDeblendedCalculations = [0,0,0,0,0,0]
-            hgDeblendedCalculations = [0,0,0,0,0,0]
-            hdDeblendedCalculations = [0,0,0,0,0,0]
+            haDeblendedCalculations = empty_measure_line_values()
+            hbDeblendedCalculations = empty_measure_line_values()
+            hgDeblendedCalculations = empty_measure_line_values()
+            hdDeblendedCalculations = empty_measure_line_values()
             if (Halpha > 0 and not _ignoreDeblendingHa):
                 _spectrum_ha_deblended = Spectrum1D(spectral_axis=wavelengthHa, flux=fluxHa_deblended, meta=meta)
                 _y_continuum_interpolated = np.interp(wavelengthHa, spec.wavelength, y_continuum_fitted)
