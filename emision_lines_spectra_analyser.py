@@ -327,6 +327,7 @@ def print_help():
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
     print('         --evolutionlabel <evolution label>')
+    print('         --centroidDifferenceInSpeed <int value>')
     print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
     print('If no lines configured, Halpha(4), Hbeta(3), Hgamma(2) and Hdelta(1) will be used')
 
@@ -357,6 +358,7 @@ def main(argv):
     AngstromIncrement = 5
     HistogramStDevPercent = 0.5
     FolderSuffix = ''
+    CentroidDifferenceInSpeed = 500
     inputParams = ''
 
     try:
@@ -365,7 +367,7 @@ def main(argv):
                                                 'angstromIncrement=','histogramStDevPercent=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label=',
-                                                'folderSuffix=','evolutionlabel='])
+                                                'folderSuffix=','evolutionlabel=','centroidDifferenceInSpeed='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -420,6 +422,8 @@ def main(argv):
             HistogramStDevPercent = float(arg)
         elif opt in ('--folderSuffix'):
             FolderSuffix = arg
+        elif opt in ('--centroidDifferenceInSpeed'):
+            CentroidDifferenceInSpeed = int(arg)
 
     if (FolderSuffix != ''):
         inputParams = FolderSuffix
@@ -1208,45 +1212,6 @@ def main(argv):
             else:
                 restored_median_xs.append(0)
                 restored_median_ys.append(0)
-
-            # We need to check all lines are actually there and are from the same component, otherwise ignore all them
-            # TODO. This does not work properly, check fit_lines with gaussian model: https://specutils.readthedocs.io/en/stable/fitting.html
-            _ignoreDeblendingHa, _ignoreDeblendingHb, _ignoreDeblendingHg, _ignoreDeblendingHd  = False, False, False, False
-            if (Halpha > 0):
-                _compare_fluxHa_interpolated = np.interp(range_x_axis, xs[0], ys[0])
-                _compare_ha = np.subtract(_compare_fluxHa_interpolated, restored_median_ys[0])
-                _compare_ha_avg = abs(np.average(_compare_ha))
-                _percentage_ha = (_compare_ha_avg / np.max(_compare_fluxHa_interpolated))
-                #if (_percentage_ha > HistogramStDevPercent):
-                #    _ignoreDeblendingHa = True
-                #print(_compare_ha_avg, np.max(_compare_fluxHa_interpolated), _percentage_ha)
-
-            if (Hbeta > 0):
-                _compare_fluxHb_interpolated = np.interp(range_x_axis, xs[1], ys[1])
-                _compare_hb = np.subtract(_compare_fluxHb_interpolated, restored_median_ys[1])
-                _compare_hb_avg = abs(np.average(_compare_hb))
-                _percentage_hb = (_compare_hb_avg / np.max(_compare_fluxHb_interpolated))
-                #if (_percentage_hb > HistogramStDevPercent):
-                #    _ignoreDeblendingHb = True
-                #print(_compare_hb_avg, np.max(_compare_fluxHb_interpolated), _percentage_hb)
-
-            if (Hgamma > 0):
-                _compare_fluxHg_interpolated = np.interp(range_x_axis, xs[2], ys[2])
-                _compare_hg = np.subtract(_compare_fluxHg_interpolated, restored_median_ys[2])
-                _compare_hg_avg = abs(np.average(_compare_hg))
-                _percentage_hg = (_compare_hg_avg / np.max(_compare_fluxHg_interpolated))
-                #if (_percentage_hg > HistogramStDevPercent):
-                #    _ignoreDeblendingHg = True
-                #print(_compare_hg_avg, np.max(_compare_fluxHg_interpolated), _percentage_hg)
-
-            if (Hdelta > 0):
-                _compare_fluxHd_interpolated = np.interp(range_x_axis, xs[3], ys[3])
-                _compare_hd = np.subtract(_compare_fluxHd_interpolated, restored_median_ys[3])
-                _compare_hd_avg = abs(np.average(_compare_hd))
-                _percentage_hd = (_compare_hd_avg / np.max(_compare_fluxHd_interpolated))
-                #if (_percentage_hd > HistogramStDevPercent):
-                #    _ignoreDeblendingHd = True
-                #print(_compare_hd_avg, np.max(_compare_fluxHd_interpolated), _percentage_hd)
     
             # Deblending process
             fig, ax = plt.subplots()
@@ -1292,6 +1257,16 @@ def main(argv):
                     _spectrum_ha_fit_norm = (_spectrum_ha_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     haFitCalculations = measure_line_continuum_bigger_padding(Halpha, _spectrum_ha_fit_norm, _spectrum_ha_fit, AngstromIncrement, HistogramStDevPercent)
 
+                    # Check if centroid calculated is too far from reference, to discard line
+                    centroidDifference = haCalculations[3].value - Halpha
+                    centroidDifferenceSpeed = 300000 * (centroidDifference / Halpha)
+                    print('Line ' + str(HalphaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(haFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHa = True
+                else:
+                    #Ignore line if we cannot fit a model
+                    _ignoreDeblendingHa = True
+
                 # Calculate and plot deblending process
                 if (not _ignoreDeblendingHa):
                     fluxHa_interpolated = np.interp(wavelengthHa.value, restored_median_xs[0], restored_median_ys[0])
@@ -1322,6 +1297,16 @@ def main(argv):
                     _y_continuum_interpolated = np.interp(wavelengthHb, spec.wavelength, y_continuum_fitted)
                     _spectrum_hb_fit_norm = (_spectrum_hb_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     hbFitCalculations = measure_line_continuum_bigger_padding(Hbeta, _spectrum_hb_fit_norm, _spectrum_hb_fit, AngstromIncrement, HistogramStDevPercent)
+
+                    # Check if centroid calculated is too far from reference, to discard line
+                    centroidDifference = hbCalculations[3].value - Hbeta
+                    centroidDifferenceSpeed = 300000 * (centroidDifference / Hbeta)
+                    print('Line ' + str(HbetaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hbFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHb = True
+                else:
+                    #Ignore line if we cannot fit a model
+                    _ignoreDeblendingHb = True
 
                 # Calculate and plot deblending process
                 if (not _ignoreDeblendingHb):
@@ -1354,6 +1339,16 @@ def main(argv):
                     _spectrum_hg_fit_norm = (_spectrum_hg_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     hgFitCalculations = measure_line_continuum_bigger_padding(Hgamma, _spectrum_hg_fit_norm, _spectrum_hg_fit, AngstromIncrement, HistogramStDevPercent)
 
+                    # Check if centroid calculated is too far from reference, to discard line
+                    centroidDifference = hgCalculations[3].value - Hgamma
+                    centroidDifferenceSpeed = 300000 * (centroidDifference / Hgamma)
+                    print('Line ' + str(HgammaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hgFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHg = True
+                else:
+                    #Ignore line if we cannot fit a model
+                    _ignoreDeblendingHg = True
+
                 # Calculate and plot deblending process
                 if (not _ignoreDeblendingHg):
                     fluxHg_interpolated = np.interp(wavelengthHg.value, restored_median_xs[2], restored_median_ys[2])
@@ -1384,6 +1379,16 @@ def main(argv):
                     _y_continuum_interpolated = np.interp(wavelengthHd, spec.wavelength, y_continuum_fitted)
                     _spectrum_hd_fit_norm = (_spectrum_hd_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     hdFitCalculations = measure_line_continuum_bigger_padding(Hdelta, _spectrum_hd_fit_norm, _spectrum_hd_fit, AngstromIncrement, HistogramStDevPercent)
+
+                    # Check if centroid calculated is too far from reference, to discard line
+                    centroidDifference = hdCalculations[3].value - Hdelta
+                    centroidDifferenceSpeed = 300000 * (centroidDifference / Hdelta)
+                    print('Line ' + str(HdeltaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hdFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHd = True
+                else:
+                    #Ignore line if we cannot fit a model
+                    _ignoreDeblendingHd = True
 
                 # Calculate and plot deblending process
                 if (not _ignoreDeblendingHd):
@@ -1547,19 +1552,42 @@ def main(argv):
                 hdFluxDataDeblended = [hdDeblendedCalculations[0]]
 
             # Add deblended values to report
-            haValues = np.append(haValues, [haDeblendedCalculations[0].value, haDeblendedCalculations[1].value, haDeblendedCalculations[2].value, haDeblendedCalculations[3].value])
-            hbValues = np.append(hbValues, [hbDeblendedCalculations[0].value, hbDeblendedCalculations[1].value, hbDeblendedCalculations[2].value, hbDeblendedCalculations[3].value])
-            hgValues = np.append(hgValues, [hgDeblendedCalculations[0].value, hgDeblendedCalculations[1].value, hgDeblendedCalculations[2].value, hgDeblendedCalculations[3].value])
-            hdValues = np.append(hdValues, [hdDeblendedCalculations[0].value, hdDeblendedCalculations[1].value, hdDeblendedCalculations[2].value, hdDeblendedCalculations[3].value])
+            if (Halpha > 0):
+                haValues = np.append(haValues, [haDeblendedCalculations[0].value, haDeblendedCalculations[1].value, haDeblendedCalculations[2].value, haDeblendedCalculations[3].value])
+            if (Hbeta > 0):
+                hbValues = np.append(hbValues, [hbDeblendedCalculations[0].value, hbDeblendedCalculations[1].value, hbDeblendedCalculations[2].value, hbDeblendedCalculations[3].value])
+            if (Hgamma > 0):
+                hgValues = np.append(hgValues, [hgDeblendedCalculations[0].value, hgDeblendedCalculations[1].value, hgDeblendedCalculations[2].value, hgDeblendedCalculations[3].value])
+            if (Hdelta > 0):
+                hdValues = np.append(hdValues, [hdDeblendedCalculations[0].value, hdDeblendedCalculations[1].value, hdDeblendedCalculations[2].value, hdDeblendedCalculations[3].value])
 
             # Add model fit values to report
-            haValues = np.append(haValues, [haFitCalculations[0].value, haFitCalculations[1].value, haFitCalculations[2].value, haFitCalculations[3].value])
-            hbValues = np.append(hbValues, [hbFitCalculations[0].value, hbFitCalculations[1].value, hbFitCalculations[2].value, hbFitCalculations[3].value])
-            hgValues = np.append(hgValues, [hgFitCalculations[0].value, hgFitCalculations[1].value, hgFitCalculations[2].value, hgFitCalculations[3].value])
-            hdValues = np.append(hdValues, [hdFitCalculations[0].value, hdFitCalculations[1].value, hdFitCalculations[2].value, hdFitCalculations[3].value])
+            if (Halpha > 0):
+                haValues = np.append(haValues, [haFitCalculations[0].value, haFitCalculations[1].value, haFitCalculations[2].value, haFitCalculations[3].value])
+            if (Hbeta > 0):
+                hbValues = np.append(hbValues, [hbFitCalculations[0].value, hbFitCalculations[1].value, hbFitCalculations[2].value, hbFitCalculations[3].value])
+            if (Hgamma > 0):
+                hgValues = np.append(hgValues, [hgFitCalculations[0].value, hgFitCalculations[1].value, hgFitCalculations[2].value, hgFitCalculations[3].value])
+            if (Hdelta > 0):
+                hdValues = np.append(hdValues, [hdFitCalculations[0].value, hdFitCalculations[1].value, hdFitCalculations[2].value, hdFitCalculations[3].value])
             
+            #lines = np.array([])
+            #if (Halpha > 0):
+            #    lines = np.append(lines, [haValues], 0)
+            #if (Hbeta > 0):
+            #    lines = np.append(lines, [hbValues], 0)
+            #if (Hgamma > 0):
+            #    lines = np.append(lines, [hgValues], 0)
+            #if (Hdelta > 0):
+            #    lines = np.append(lines, [hdValues], 0)
+            #lines = np.array([haValues, hbValues, hgValues, hdValues])
+            # TODO: Make this dynamic for any line being zero
+            if (Halpha > 0):
+                lines = np.array([haValues, hbValues, hgValues, hdValues])
+            else:
+                lines = np.array([hbValues, hgValues, hdValues])
+            print(lines)
             # Write report
-            lines = np.array([haValues, hbValues, hgValues, hdValues])
             report.write('Lines analisys' + '\n')
             report.write(tabulate(lines, headers=['Line', 'Flux', 'FWHM', 'Equivalent width', 'Centroid', 'Flux deblended', 'FWHM deblended', 'Equivalent width deblended', 'Centroid deblended', 'Flux model', 'FWHM model', 'Equivalent width model', 'Centroid model']) + '\n')
             
