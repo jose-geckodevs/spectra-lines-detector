@@ -74,7 +74,8 @@ def main(argv):
                 hdul.close()
                 spec = Spectrum1D.read(filename)
 
-            print(spec)
+            for header in spec.meta['header']:
+                print(str(header) + ' = ' + str(spec.meta['header'][header]))
 
             flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
             ax.plot(wavelength, flux)

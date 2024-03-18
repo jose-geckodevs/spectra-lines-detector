@@ -490,7 +490,10 @@ def main(argv):
                 if not filename.endswith('.fits'):
                     continue
                 spec = Spectrum1D.read(path + filename)
-                listFITS.append([filename, spec.meta['header']['DATE-OBS']])
+                if ('DATE-OBS' in spec.meta['header']):
+                    listFITS.append([filename, spec.meta['header']['DATE-OBS']])
+                else:
+                    listFITS.append([filename, filename])
             
             if (len(listFITS) <= 0):
                 print('No FITs found on folder ' + path)
@@ -551,7 +554,6 @@ def main(argv):
                 meta['header'] = {}
                 meta['header']['NAXIS1'] = len(data.wavelength)
                 meta['header']['CRVAL1'] = data.wavelength[0]
-                meta['header']['DATE-OBS'] = sortedDates[counter]
                 spec_original = Spectrum1D(spectral_axis=np.array(data.wavelength) * u.AA, flux=np.array(data.flux) * (u.erg / u.Angstrom / u.s / u.cm / u.cm), meta=meta)
 
             else:
@@ -569,11 +571,16 @@ def main(argv):
                     report.write(repr(spec_original.meta['header']) + '\n')
                     report.write('\n')
 
-                report.write('Date observation: ' + spec_original.meta['header']['DATE-OBS'] + '\n')
-                report.write('Exposure time: ' + str(spec_original.meta['header']['EXPTIME']) + '\n')
-                report.write('Telescope: ' + spec_original.meta['header']['TELESCOP'] + '\n')
-                report.write('Instrument: ' + spec_original.meta['header']['INSTRUME'] + '\n')
-                report.write('Object: ' + spec_original.meta['header']['OBJECT'] + '\n')
+                if ('DATE-OBS' in spec.meta['header']):
+                    report.write('Date observation: ' + spec_original.meta['header']['DATE-OBS'] + '\n')
+                if ('EXPTIME' in spec.meta['header']):
+                    report.write('Exposure time: ' + str(spec_original.meta['header']['EXPTIME']) + '\n')
+                if ('TELESCOP' in spec.meta['header']):
+                    report.write('Telescope: ' + spec_original.meta['header']['TELESCOP'] + '\n')
+                if ('INSTRUME' in spec.meta['header']):
+                    report.write('Instrument: ' + spec_original.meta['header']['INSTRUME'] + '\n')
+                if ('OBJECT' in spec.meta['header']):
+                    report.write('Object: ' + spec_original.meta['header']['OBJECT'] + '\n')
 
             # Limit the spectrum between the lower and upper range
             flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec_original)
