@@ -29,6 +29,8 @@ from dateutil.parser import parse
 import math
 import statistics
 
+VERSION = "1.0"
+
 HALPHA_REF = 6563
 HBETA_REF = 4861
 HGAMMA_REF = 4341
@@ -505,23 +507,31 @@ def main(argv):
         else:
             evolutionPlaneLog = False
             
+        # Prepare csv report
         numLines = 0
-        csv = open(output_path + 'lines_measurements.csv', 'w')
-        csv.write('Spectra file;')
+        csv_report = open(output_path + 'lines_measurements.csv', 'w')
+        csv_report.write('Spectra file;')
         if (Halpha > 0):
-            csv.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' deblended flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
+            csv_report.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' deblended flux;' + HalphaLabel + ' model flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
             numLines = numLines + 1
         if (Hbeta > 0):
-            csv.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' deblended flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
+            csv_report.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' deblended flux;' + HbetaLabel + ' model flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
             numLines = numLines + 1
         if (Hgamma > 0):
-            csv.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' deblended flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
+            csv_report.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' deblended flux;' + HgammaLabel+ ' model flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
             numLines = numLines + 1
         if (Hdelta > 0):
-            csv.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' deblended flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm;')
+            csv_report.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' deblended flux;' + HdeltaLabel + ' model flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm;')
             numLines = numLines + 1
-        csv.write('\n')
+        csv_report.write('\n')
 
+        # Prepare html graph report
+        html_report = open(output_path + 'graph_report.html', 'w')
+        html_report.write(f"<html><body>\n")
+        html_report.write(f"<h1>Emission lines spectra analyser v{VERSION}</h1>\n")
+        html_report.write(f"<h2>Lines: {HalphaLabel} {HbetaLabel} {HgammaLabel} {HdeltaLabel}</h2>\n")
+        html_report.write(f"<span>Generated at {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</span>\n")
+        html_report.write(f"<br /><br />\n");
         counter = 0
         for filename in sortedFiles:
             if not filename.endswith('.fits') and not filename.endswith('.dat'):
@@ -530,8 +540,10 @@ def main(argv):
             report = open(output_path + filename + '.txt', 'w')
             report.write('Filename: ' + filename + '\n')
 
-            csv.write(filename + ';')
+            csv_report.write(filename + ';')
             
+            html_report.write(f"<h3>{filename}</h3>\n")
+
             if filename.endswith('.dat'):
                 # Read the spectrum from dat file
                 data = pd.read_csv(path + filename, delimiter=datSeparator, names=['wavelength','flux'], header=None)
@@ -594,7 +606,7 @@ def main(argv):
                 report.write('\n')
 
             fig = plt.figure()
-            fig.suptitle(filename)
+            #fig.suptitle(filename)
             fig.set_figwidth(15)
             fig.set_figheight(25)
             
@@ -937,7 +949,7 @@ def main(argv):
                 report.write('Found lines (derivative threshold 0.95):' + '\n')
                 report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
-            
+
             # Measure lines finding paddigns
             if (Halpha > 0):
                 haCalculations = measure_line_continuum_bigger_padding(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
@@ -1040,6 +1052,8 @@ def main(argv):
                 evolutionPlane.append(sortedDates[counter])
             
             # Plot main figure
+            #plt.subplots_adjust(left=0.1, right=0.1, top=0.1, bottom=0.1)
+            fig.tight_layout()
             plt.savefig(output_path + filename + '.png')
             plt.clf()
 
@@ -1178,6 +1192,7 @@ def main(argv):
             ax.plot(symmetric_x_axis, symmetric_y_axis, label = 'Symmetric', color='m', linestyle='dashed')
 
             plt.legend()
+            fig.tight_layout()
             plt.savefig(output_path + filename + '.lines_shape_overlap.png')
             plt.clf()
 
@@ -1234,6 +1249,10 @@ def main(argv):
             hbFitCalculations = empty_measure_line_values()
             hgFitCalculations = empty_measure_line_values()
             hdFitCalculations = empty_measure_line_values()
+            _ignoreDeblendingHa = False
+            _ignoreDeblendingHb = False
+            _ignoreDeblendingHg = False
+            _ignoreDeblendingHd = False
             if (Halpha > 0):
                 ax1 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
@@ -1257,11 +1276,17 @@ def main(argv):
                     _spectrum_ha_fit_norm = (_spectrum_ha_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     haFitCalculations = measure_line_continuum_bigger_padding(Halpha, _spectrum_ha_fit_norm, _spectrum_ha_fit, AngstromIncrement, HistogramStDevPercent)
 
-                    # Check if centroid calculated is too far from reference, to discard line
-                    centroidDifference = haCalculations[3].value - Halpha
+                    # Check if centroid calculated model is too far from reference, to discard line
+                    centroidDifference = haFitCalculations[3].value - Halpha
                     centroidDifferenceSpeed = 300000 * (centroidDifference / Halpha)
-                    print('Line ' + str(HalphaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    #print('Line ' + str(HalphaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
                     if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(haFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHa = True
+                    # Check too if the flux is high enough to be considered a line
+                    _flux = fluxHa[_indexFlux].value
+                    _mode = statistics.mode(fluxHa.value)
+                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
+                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
                         _ignoreDeblendingHa = True
                 else:
                     #Ignore line if we cannot fit a model
@@ -1273,6 +1298,9 @@ def main(argv):
                     fluxHa_deblended = (fluxHa.value - (fluxHa.value - fluxHa_interpolated)) * fluxHa.unit
                     ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'l - m')
                     ax1.plot(wavelengthHa, fluxHa_deblended, label = 'd')
+                else:
+                    ax1.plot([],[], label = 'l - m')
+                    ax1.plot([],[], label = 'd')
             
             if (Hbeta > 0):
                 ax2 = fig.add_subplot(gs[0, columns])
@@ -1298,11 +1326,17 @@ def main(argv):
                     _spectrum_hb_fit_norm = (_spectrum_hb_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     hbFitCalculations = measure_line_continuum_bigger_padding(Hbeta, _spectrum_hb_fit_norm, _spectrum_hb_fit, AngstromIncrement, HistogramStDevPercent)
 
-                    # Check if centroid calculated is too far from reference, to discard line
-                    centroidDifference = hbCalculations[3].value - Hbeta
+                    # Check if centroid calculated model is too far from reference, to discard line
+                    centroidDifference = hbFitCalculations[3].value - Hbeta
                     centroidDifferenceSpeed = 300000 * (centroidDifference / Hbeta)
-                    print('Line ' + str(HbetaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    #print('Line ' + str(HbetaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
                     if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hbFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHb = True
+                    # Check too if the flux is high enough to be considered a line
+                    _flux = fluxHb[_indexFlux].value
+                    _mode = statistics.mode(fluxHb.value)
+                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
+                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
                         _ignoreDeblendingHb = True
                 else:
                     #Ignore line if we cannot fit a model
@@ -1314,6 +1348,9 @@ def main(argv):
                     fluxHb_deblended = (fluxHb.value - (fluxHb.value - fluxHb_interpolated)) * fluxHb.unit
                     ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'l - m')
                     ax2.plot(wavelengthHb, fluxHb_deblended, label = 'd')
+                else:
+                    ax2.plot([],[], label = 'l - m')
+                    ax2.plot([],[], label = 'd')
             
             if (Hgamma > 0):
                 ax3 = fig.add_subplot(gs[0, columns])
@@ -1339,11 +1376,17 @@ def main(argv):
                     _spectrum_hg_fit_norm = (_spectrum_hg_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     hgFitCalculations = measure_line_continuum_bigger_padding(Hgamma, _spectrum_hg_fit_norm, _spectrum_hg_fit, AngstromIncrement, HistogramStDevPercent)
 
-                    # Check if centroid calculated is too far from reference, to discard line
-                    centroidDifference = hgCalculations[3].value - Hgamma
+                    # Check if centroid calculated model is too far from reference, to discard line
+                    centroidDifference = hgFitCalculations[3].value - Hgamma
                     centroidDifferenceSpeed = 300000 * (centroidDifference / Hgamma)
-                    print('Line ' + str(HgammaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    #print('Line ' + str(HgammaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
                     if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hgFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHg = True
+                    # Check too if the flux is high enough to be considered a line
+                    _flux = fluxHg[_indexFlux].value
+                    _mode = statistics.mode(fluxHg.value)
+                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
+                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
                         _ignoreDeblendingHg = True
                 else:
                     #Ignore line if we cannot fit a model
@@ -1355,6 +1398,9 @@ def main(argv):
                     fluxHg_deblended = (fluxHg.value - (fluxHg.value - fluxHg_interpolated)) * fluxHg.unit
                     ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'l - m')
                     ax3.plot(wavelengthHg, fluxHg_deblended, label = 'd')
+                else:
+                    ax3.plot([],[], label = 'l - m')
+                    ax3.plot([],[], label = 'd')
             
             if (Hdelta > 0):
                 ax4 = fig.add_subplot(gs[0, columns])
@@ -1380,11 +1426,17 @@ def main(argv):
                     _spectrum_hd_fit_norm = (_spectrum_hd_fit + _y_continuum_interpolated) / _y_continuum_interpolated
                     hdFitCalculations = measure_line_continuum_bigger_padding(Hdelta, _spectrum_hd_fit_norm, _spectrum_hd_fit, AngstromIncrement, HistogramStDevPercent)
 
-                    # Check if centroid calculated is too far from reference, to discard line
-                    centroidDifference = hdCalculations[3].value - Hdelta
+                    # Check if centroid calculated model is too far from reference, to discard line
+                    centroidDifference = hdFitCalculations[3].value - Hdelta
                     centroidDifferenceSpeed = 300000 * (centroidDifference / Hdelta)
-                    print('Line ' + str(HdeltaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    #print('Line ' + str(HdeltaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
                     if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hdFitCalculations[2].value) > 0):
+                        _ignoreDeblendingHd = True
+                    # Check too if the flux is high enough to be considered a line
+                    _flux = fluxHd[_indexFlux].value
+                    _mode = statistics.mode(fluxHd.value)
+                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
+                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
                         _ignoreDeblendingHd = True
                 else:
                     #Ignore line if we cannot fit a model
@@ -1396,8 +1448,12 @@ def main(argv):
                     fluxHd_deblended = (fluxHd.value - (fluxHd.value - fluxHd_interpolated)) * fluxHd.unit
                     ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'l - m')
                     ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
+                else:
+                    ax4.plot([],[], label = 'l - m')
+                    ax4.plot([],[], label = 'd')
 
             plt.legend()
+            fig.tight_layout()
             plt.savefig(output_path + filename + '.lines_deblending.png')
             plt.clf()
 
@@ -1416,6 +1472,7 @@ def main(argv):
                 fig.set_figheight(7)
                 ax.plot(spec.wavelength, fluxHa_deblended_interpolated, label = HalphaLabel)
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HalphaLabel.lower() + '_deblended.png')
                 plt.clf()
             else:
@@ -1435,6 +1492,7 @@ def main(argv):
                 fig.set_figheight(7)
                 ax.plot(spec.wavelength, fluxHb_deblended_interpolated, label = HbetaLabel)
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HbetaLabel.lower() + '_deblended.png')
                 plt.clf()
             else:
@@ -1454,6 +1512,7 @@ def main(argv):
                 fig.set_figheight(7)
                 ax.plot(spec.wavelength, fluxHg_deblended_interpolated, label = HgammaLabel)
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HgammaLabel.lower() + '_deblended.png')
                 plt.clf()
             else:
@@ -1473,6 +1532,7 @@ def main(argv):
                 fig.set_figheight(7)
                 ax.plot(spec.wavelength, fluxHd_deblended_interpolated, label = HdeltaLabel)
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HdeltaLabel.lower() + '_deblended.png')
                 plt.clf()
             else:
@@ -1497,26 +1557,32 @@ def main(argv):
                 else:
                     all_lines = fluxHd_deblended_interpolated
             
-            fig, ax = plt.subplots()
-            fig.set_figwidth(10)
-            fig.set_figheight(7)
-            ax.plot(spec.wavelength, all_lines, label = 'All lines')
-            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
-            plt.savefig(output_path + filename + '.all_deblended_lines.png')
-            plt.clf()
+            if (len(all_lines) > 0):
+                fig, ax = plt.subplots()
+                fig.set_figwidth(10)
+                fig.set_figheight(7)
+                ax.plot(spec.wavelength, all_lines, label = 'All lines')
+                ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                fig.tight_layout()
+                plt.savefig(output_path + filename + '.all_deblended_lines.png')
+                plt.clf()
 
-            # Generate another plot to compare the original deredden spectrum with the one without lines
-            fig, ax = plt.subplots()
-            fig.set_figwidth(10)
-            fig.set_figheight(7)
-            ax.plot(spec.wavelength, spec.flux, label = 'Original', color='y', linestyle='dashed')
-            ax.plot(spec.wavelength, spec.flux - all_lines, label = 'Processed', color='c', linestyle='dashed')
-            ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
-            plt.savefig(output_path + filename + '.processed_comparission.png')
-            plt.clf()
+                # Generate another plot to compare the original deredden spectrum with the one without lines
+                fig, ax = plt.subplots()
+                fig.set_figwidth(10)
+                fig.set_figheight(7)
+                ax.plot(spec.wavelength, spec.flux, label = 'Original', color='y', linestyle='dashed')
+                ax.plot(spec.wavelength, spec.flux - all_lines, label = 'Processed', color='c', linestyle='dashed')
+                ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                fig.tight_layout()
+                plt.savefig(output_path + filename + '.processed_comparission.png')
+                plt.clf()
             
-            # Finally save the processed spectra to file
-            np.savetxt(output_path + '/processed/' + filename, np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
+                # Finally save the processed spectra to file
+                np.savetxt(output_path + '/processed/' + filename, np.column_stack((spec.wavelength.value, (spec.flux - all_lines).value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
+            else:
+                # Save the origial spectra to file if no lines to remove
+                np.savetxt(output_path + '/processed/' + filename, np.column_stack((spec.wavelength.value, spec.flux.value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
 
             # Calculate values of deblended lines
             haDeblendedCalculations = empty_measure_line_values()
@@ -1586,7 +1652,8 @@ def main(argv):
                 lines = np.array([haValues, hbValues, hgValues, hdValues])
             else:
                 lines = np.array([hbValues, hgValues, hdValues])
-            print(lines)
+            #print(lines)
+
             # Write report
             report.write('Lines analisys' + '\n')
             report.write(tabulate(lines, headers=['Line', 'Flux', 'FWHM', 'Equivalent width', 'Centroid', 'Flux deblended', 'FWHM deblended', 'Equivalent width deblended', 'Centroid deblended', 'Flux model', 'FWHM model', 'Equivalent width model', 'Centroid model']) + '\n')
@@ -1604,25 +1671,33 @@ def main(argv):
 
             # Write spreadsheet
             if (Halpha > 0 and not _ignoreDeblendingHa):
-                csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(haFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
+                csv_report.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(haFitCalculations[0].value) + ';' + str(haFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
             elif (Halpha > 0):
-                csv.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';;' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
+                csv_report.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';;;' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
             if (Hbeta > 0 and not _ignoreDeblendingHb):
-                csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(hbFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
+                csv_report.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(hbFitCalculations[0].value) + ';' + str(hbFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
             elif (Hbeta > 0):
-                csv.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';;' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
+                csv_report.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';;;' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
             if (Hgamma > 0 and not _ignoreDeblendingHg):
-                csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(hgFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
+                csv_report.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(hgFitCalculations[0].value) + ';' + str(hgFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
             elif (Hgamma > 0):
-                csv.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';;' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
+                csv_report.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';;;' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
             if (Hdelta > 0 and not _ignoreDeblendingHd):
-                csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(hdFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
+                csv_report.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(hdFitCalculations[0].value) + ';' + str(hdFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
             elif (Hdelta > 0):
-                csv.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';;' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
-            csv.write('\n')
+                csv_report.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';;;' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
+            csv_report.write('\n')
 
             # Close report
             report.close()
+
+            # Write the PDF report
+            html_report.write(f"<img src='{filename + '.png'}'>\n")
+            html_report.write(f"<br />\n");
+            html_report.write(f"<img src='{filename + '.lines_deblending.png'}'>\n")
+            html_report.write(f"<br />\n");
+            html_report.write(f"<img src='{filename + '.lines_shape_overlap.png'}'>\n")
+            html_report.write(f"<br /><br />\n");
 
             counter = counter + 1
 
@@ -1653,6 +1728,7 @@ def main(argv):
             else:
                 fig.autofmt_xdate()
             plt.legend()
+            fig.tight_layout()
             plt.savefig(output_path + 'lines_flux_evolution.png')
             plt.clf()
 
@@ -1671,6 +1747,7 @@ def main(argv):
                 else:
                     fig.autofmt_xdate()
                 plt.legend()
+                fig.tight_layout()
                 plt.savefig(output_path + 'lines_ratio_evolution.png')
                 plt.clf()
 
@@ -1694,10 +1771,14 @@ def main(argv):
             else:
                 fig.autofmt_xdate()
             plt.legend()
+            fig.tight_layout()
             plt.savefig(output_path + 'lines_fwhm_evolution.png')
             plt.clf()
 
-        csv.close()
+        csv_report.close()
+
+        html_report.write(f"</body><html>\n")
+        html_report.close()
 
         endTime = datetime.now()
         print('Completed at ' + datetime.now().strftime('%H:%M:%S'))
