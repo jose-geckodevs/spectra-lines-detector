@@ -75,8 +75,9 @@ def main(argv):
                 spec = Spectrum1D.read(filename)
 
             for header in spec.meta['header']:
-                print(str(header) + ' = ' + str(spec.meta['header'][header]))
-
+                if (header):
+                    print(str(header) + ' = ' + str(spec.meta['header'][header]))
+                    
             flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
             ax.plot(wavelength, flux)
 
