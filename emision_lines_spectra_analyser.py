@@ -302,6 +302,11 @@ def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D
         _padding = _rightPadding
     _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
 
+    # Check if there is data in the region and if not return empty_measure_line_values()
+    _check_flux, _wavelength = limit_spectra_array(_center - _padding, _center + _padding, _spec_flux)
+    if (len(_check_flux) <= 0):
+        return empty_measure_line_values()
+
     _fwhmData = fwhm(_spec_flux, regions = _regions)
     _fluxData = line_flux(_spec_flux, regions = _regions)
     _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
