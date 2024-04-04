@@ -1704,11 +1704,11 @@ def main(argv):
             report.close()
 
             # Write the PDF report
-            html_report.write(f"<img src='{filename + '.png'}'>\n")
+            html_report.write(f"<img src='./{filename + '.png'}'>\n")
             html_report.write(f"<br />\n");
-            html_report.write(f"<img src='{filename + '.lines_deblending.png'}'>\n")
+            html_report.write(f"<img src='./{filename + '.lines_deblending.png'}'>\n")
             html_report.write(f"<br />\n");
-            html_report.write(f"<img src='{filename + '.lines_shape_overlap.png'}'>\n")
+            html_report.write(f"<img src='./{filename + '.lines_shape_overlap.png'}'>\n")
             html_report.write(f"<br /><br />\n");
 
             counter = counter + 1
