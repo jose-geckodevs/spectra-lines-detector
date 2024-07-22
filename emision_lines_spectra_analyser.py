@@ -767,6 +767,7 @@ def main(argv):
             spec_normalized = spec / y_continuum_fitted
             spec_flux = spec - y_continuum_fitted
             ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+            ax7.set_ylim((-1, 2))
 
             ax8.set_ylabel('Flux')
             ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
@@ -860,6 +861,7 @@ def main(argv):
                 ax7.clear()
                 ax7.set_ylabel('Normalised')
                 ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+                ax7.set_ylim((-1, 2))
 
                 ax8.clear()
                 ax8.set_ylabel('Flux')
