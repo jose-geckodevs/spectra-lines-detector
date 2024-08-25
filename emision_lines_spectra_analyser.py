@@ -335,6 +335,8 @@ def print_help():
     print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
     print('         --evolutionlabel <evolution label>')
     print('         --centroidDifferenceInSpeed <int value>')
+    print('         --continuumPolynomialModel <Polynomial1D, Chebyshev1D, Legendre1D, Hermite1D>')
+    print('         --continuumPolynomialModelDegree <1, 2, 3, 4...>')
     print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
     print('If no lines configured, Halpha(4), Hbeta(3), Hgamma(2) and Hdelta(1) will be used')
 
@@ -366,6 +368,8 @@ def main(argv):
     HistogramStDevPercent = 0.5
     FolderSuffix = ''
     CentroidDifferenceInSpeed = 500
+    ContinuumPolynomialModel = ''
+    ContinuumPolynomialModelDegree = 1
     inputParams = ''
 
     try:
@@ -374,7 +378,8 @@ def main(argv):
                                                 'angstromIncrement=','histogramStDevPercent=',
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label=',
-                                                'folderSuffix=','evolutionlabel=','centroidDifferenceInSpeed='])
+                                                'folderSuffix=','evolutionlabel=','centroidDifferenceInSpeed=',
+                                                'continuumPolynomialModel=','continuumPolynomialModelDegree='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -429,8 +434,10 @@ def main(argv):
             HistogramStDevPercent = float(arg)
         elif opt in ('--folderSuffix'):
             FolderSuffix = arg
-        elif opt in ('--centroidDifferenceInSpeed'):
-            CentroidDifferenceInSpeed = int(arg)
+        elif opt in ('--continuumPolynomialModel'):
+            ContinuumPolynomialModel = arg
+        elif opt in ('--continuumPolynomialModelDegree'):
+            ContinuumPolynomialModelDegree = int(arg)
 
     if (FolderSuffix != ''):
         inputParams = FolderSuffix
@@ -754,10 +761,16 @@ def main(argv):
             ax6.set_ylabel('Continuum')
 
             # Try detect the contiuum on a first iteration
-            #g1_fit = fit_generic_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
-            #g1_fit = fit_continuum(spec, window=includeRegions)
-            g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
-            #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
+            if ContinuumPolynomialModel == 'Polynomial1D':
+                g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+            elif ContinuumPolynomialModel == 'Chebyshev1D':
+                g1_fit = fit_continuum(spectrum=spec, model=models.Chebyshev1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+            elif ContinuumPolynomialModel == 'Legendre1D':
+                g1_fit = fit_continuum(spectrum=spec, model=models.Legendre1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+            elif ContinuumPolynomialModel == 'Hermite1D':
+                g1_fit = fit_continuum(spectrum=spec, model=models.Hermite1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+            else:
+                g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
 
             y_continuum_fitted = g1_fit(spec.wavelength)
             ax6.plot(spec.wavelength, spec.flux)
@@ -849,10 +862,17 @@ def main(argv):
                     includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
                     
                 # Try detect the contiuum on a second iteration
-                #g1_fit = fit_generic_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
-                #g1_fit = fit_continuum(spec, window=includeRegions)
-                g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
-                #g1_fit = fit_continuum(spec, window=includeRegions, exclude_regions=SpectralRegion(excludeRegions))
+                if ContinuumPolynomialModel == 'Polynomial1D':
+                    g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                elif ContinuumPolynomialModel == 'Chebyshev1D':
+                    g1_fit = fit_continuum(spectrum=spec, model=models.Chebyshev1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                elif ContinuumPolynomialModel == 'Legendre1D':
+                    g1_fit = fit_continuum(spectrum=spec, model=models.Legendre1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                elif ContinuumPolynomialModel == 'Hermite1D':
+                    g1_fit = fit_continuum(spectrum=spec, model=models.Hermite1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                else:
+                    g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
+
                 y_continuum_fitted = g1_fit(spec.wavelength)
                 ax6.plot(spec.wavelength, y_continuum_fitted)
                 
