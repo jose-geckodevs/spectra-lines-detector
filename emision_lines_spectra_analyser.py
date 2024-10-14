@@ -760,6 +760,10 @@ def main(argv):
                 
             ax6.set_ylabel('Continuum')
 
+            # Exclude atomsferic windows
+            excludeRegions.append((13000, 15000) * u.AA)
+            excludeRegions.append((18000, 20000) * u.AA)
+
             # Try detect the contiuum on a first iteration
             if ContinuumPolynomialModel == 'Polynomial1D':
                 g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
@@ -860,7 +864,11 @@ def main(argv):
                 # If no lines found, be sure we add the whole spectrum
                 if (len(includeRegions) <= 0):
                     includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
-                    
+                
+                # Exclude atomsferic windows
+                excludeRegions.append((13000, 15000) * u.AA)
+                excludeRegions.append((18000, 20000) * u.AA)
+
                 # Try detect the contiuum on a second iteration
                 if ContinuumPolynomialModel == 'Polynomial1D':
                     g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
