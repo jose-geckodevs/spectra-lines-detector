@@ -146,6 +146,11 @@ def main(argv):
 
                 grouped_flux.extend(clean_flux)
                 grouped_wavelenght.extend(clean_wavelenght)
+
+                individual_dat_filename = filename + '.dat'
+                if not os.path.exists(path + 'combined/' + key):
+                    os.makedirs(path + 'combined/' + key)
+                np.savetxt(path + 'combined/' + key + '/' + individual_dat_filename, np.column_stack((clean_wavelenght, clean_flux)), fmt=['%.4f','%.6e'], delimiter=separator)
             
             spec = Spectrum1D(spectral_axis=(grouped_wavelenght * wavelength.unit).to(u.AA), flux=(grouped_flux * flux.unit).to(u.erg / u.Angstrom / u.s / u.cm / u.cm))
             flux, wavelength = limit_spectra_array(WavelenghtLowerLimit, WavelenghtUpperLimit, spec)
