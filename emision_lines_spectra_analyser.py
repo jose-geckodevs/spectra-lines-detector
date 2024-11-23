@@ -521,7 +521,7 @@ def main(argv):
             evolutionPlaneLog = True
         else:
             evolutionPlaneLog = False
-            
+        
         # Prepare csv report
         numLines = 0
         csv_report = open(output_path + 'lines_measurements.csv', 'w')
@@ -760,7 +760,7 @@ def main(argv):
                 
             ax6.set_ylabel('Continuum')
 
-            # Exclude atomsferic windows
+            # Exclude atmosferic windows
             excludeRegions.append((13000, 15000) * u.AA)
             excludeRegions.append((18000, 20000) * u.AA)
 
@@ -865,7 +865,7 @@ def main(argv):
                 if (len(includeRegions) <= 0):
                     includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
                 
-                # Exclude atomsferic windows
+                # Exclude atmosferic windows
                 excludeRegions.append((13000, 15000) * u.AA)
                 excludeRegions.append((18000, 20000) * u.AA)
 
