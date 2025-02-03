@@ -307,17 +307,20 @@ def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D
     if (len(_check_flux) <= 0):
         return empty_measure_line_values()
 
-    _fwhmData = fwhm(_spec_flux, regions = _regions)
-    _fluxData = line_flux(_spec_flux, regions = _regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_flux, regions = _regions)
+    try:
+        _fwhmData = fwhm(_spec_flux, regions = _regions)
+        _fluxData = line_flux(_spec_flux, regions = _regions)
+        _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
+        _centroidData = centroid(_spec_flux, regions = _regions)
+    except:
+        return empty_measure_line_values()
 
     # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
 
     return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _padding, _padding
 
 def empty_measure_line_values():
-    return [u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0)]
+    return [u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0), 0, 0]
 
 def print_help():
     print('display_fits_spectra_advance.py')
@@ -337,8 +340,17 @@ def print_help():
     print('         --centroidDifferenceInSpeed <int value>')
     print('         --continuumPolynomialModel <Polynomial1D, Chebyshev1D, Legendre1D, Hermite1D>')
     print('         --continuumPolynomialModelDegree <1, 2, 3, 4...>')
+    print('         --saveContinuum <file prefix to save continuum to file>')
+    print('         --loadContinuum <path to load continuum files>')
     print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
     print('If no lines configured, Halpha(4), Hbeta(3), Hgamma(2) and Hdelta(1) will be used')
+
+def save_continuum_to_file(wavelength, continuum, output_path, filename):
+    continuum_filename = os.path.join(output_path + '/continuum', f"{filename}_continuum.dat")
+    np.savetxt(continuum_filename, np.column_stack((wavelength.value, continuum.value)), fmt=['%.4f', '%.6e'], delimiter=' ')
+
+def html_to_mathtext(label):
+    return label.replace('&', '$\\').replace(';', '$')
 
 def main(argv):
     quantity_support() 
@@ -351,13 +363,13 @@ def main(argv):
     onlyOne = False
     
     Halpha = HALPHA_REF
-    HalphaLabel = 'Halpha'
+    HalphaLabel = 'H&alpha;'
     Hbeta = HBETA_REF
-    HbetaLabel = 'Hbeta'
+    HbetaLabel = 'H&beta;'
     Hgamma = HGAMMA_REF
-    HgammaLabel = 'Hgamma'
+    HgammaLabel = 'H&gamma;'
     Hdelta = HDELTA_REF
-    HdeltaLabel = 'Hdelta'
+    HdeltaLabel = 'H&delta;'
     EvolutionLabel = 'Days after maximum'
     WavelenghtLowerLimit = 4000
     WavelenghtUpperLimit = 7000
@@ -370,6 +382,8 @@ def main(argv):
     CentroidDifferenceInSpeed = 500
     ContinuumPolynomialModel = ''
     ContinuumPolynomialModelDegree = 1
+    SaveContinuum = None
+    LoadContinuum = None
     inputParams = ''
 
     try:
@@ -379,12 +393,13 @@ def main(argv):
                                                 'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
                                                 'l1label=','l2label=','l3label=','l4label=',
                                                 'folderSuffix=','evolutionlabel=','centroidDifferenceInSpeed=',
-                                                'continuumPolynomialModel=','continuumPolynomialModelDegree='])
+                                                'continuumPolynomialModel=','continuumPolynomialModelDegree=',
+                                                'saveContinuum=','loadContinuum='])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
     for opt, arg in opts:
-        if opt not in ('-p', '--path', '--datPath', '--datSeparator'):
+        if opt not in ('-p', '--path', '--datPath', '--datSeparator', '--saveContinuum', '--loadContinuum'):
             inputParams += opt + arg
 
         if opt in ('-h', '--help'):
@@ -438,6 +453,10 @@ def main(argv):
             ContinuumPolynomialModel = arg
         elif opt in ('--continuumPolynomialModelDegree'):
             ContinuumPolynomialModelDegree = int(arg)
+        elif opt in ('--saveContinuum'):
+            SaveContinuum = arg
+        elif opt in ('--loadContinuum'):
+            LoadContinuum = arg
 
     if (FolderSuffix != ''):
         inputParams = FolderSuffix
@@ -457,6 +476,9 @@ def main(argv):
     # Prepare folder for regenreated spectra processed files
     if not os.path.exists(output_path + '/processed'):
         os.makedirs(output_path + '/processed')
+
+    if SaveContinuum != None and not os.path.exists(output_path + '/continuum'):
+        os.makedirs(output_path + '/continuum')
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -661,151 +683,71 @@ def main(argv):
             
             # Plot initial spectrum
             ax5.plot(spec_limited.wavelength, spec_limited.flux)
-            
-            # Try find the lines without the lines initally without the continuum
-            noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
-            spec_noise = noise_region_uncertainty(spec, noise_region)
-            lines = find_lines_threshold(spec_noise, noise_factor=1)
-            numLinesFirstIteration = len(lines)
-            
-            if debug:
-                # Try identify lines
-                lines.add_column(name='match', col='          ')
-                for row in lines:
-                    if (Halpha > 0 and abs(row[0].value - Halpha) < 10):
-                        row[3] = HalphaLabel
-                    elif (Hbeta > 0 and abs(row[0].value - Hbeta) < 10):
-                        row[3] = HbetaLabel
-                    elif (Hgamma > 0 and abs(row[0].value - Hgamma) < 10):
-                        row[3] = HgammaLabel
-                    elif (Hdelta > 0 and abs(row[0].value - Hdelta) < 10):
-                        row[3] = HdeltaLabel
-                    else:
-                        row[3] = ''
+
+            if (LoadContinuum != None):
+                # Load continuum from file
+                continuum_filepath = os.path.join(LoadContinuum, f"{(counter+1):03}-combined.dat")
+                continuum_data = pd.read_csv(continuum_filepath, delimiter=datSeparator, names=['wavelength','flux'], header=None)
+                continuum_meta = {}
+                continuum_meta['header'] = {}
+                continuum_meta['header']['NAXIS1'] = len(data.wavelength)
+                continuum_meta['header']['CRVAL1'] = data.wavelength[0]
+                spec_continuum = Spectrum1D(spectral_axis=np.array(continuum_data.wavelength) * u.AA, flux=np.array(continuum_data.flux) * (u.erg / u.Angstrom / u.s / u.cm / u.cm), meta=continuum_meta)
+                
+                # Interpolate continuum to match the wavelength axis of the original spectrum
+                y_continuum_fitted = np.interp(spec.wavelength.value, spec_continuum.wavelength.value, spec_continuum.flux.value) * spec_continuum.flux.unit
+
+                ax6.plot(spec.wavelength, spec.flux)
+                ax6.plot(spec.wavelength, y_continuum_fitted)
+
+                spec_normalized = spec / y_continuum_fitted
+                spec_flux = spec - y_continuum_fitted
+                ax8.set_ylabel('Flux')
+                ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
+
+                ax7.set_ylabel('Normalised')
+                ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+                ax7.set_ylim((-1, 2))
+
+                # Find now lines by thresholding using the flux substracted contiuum spectrum
+                noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
+                spec_noise = noise_region_uncertainty(spec_flux, noise_region)
+                lines = find_lines_threshold(spec_noise, noise_factor=1)
+                numLinesSecondIteration = len(lines)
+
+            else:
+                # Try find the lines without the continuum
+                noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
+                spec_noise = noise_region_uncertainty(spec, noise_region)
+                lines = find_lines_threshold(spec_noise, noise_factor=1)
+                numLinesFirstIteration = len(lines)
                 
                 if debug:
-                    report.write('Initial lines found (noise region uncertainty factor 1):' + '\n')
-                    report.write(tabulate(lines, headers=['Line center','Type','Index']) + '\n')
-                    report.write('\n')
-            
-            includeRegions = []
-            excludeRegions = []
-            wavelengthContinuumRegions = []
-            fluxContinuumRegions = [] # As reference we will use the first flux value on the spectrum as include region and 0
-            previousLine = 0
-            padding = 50
-            for row in lines:
-                if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
-                    # First line found, add first part of the spectrum
-                    includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
-                    excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
-                    # Include first regions
-                    fluxContinuumRegions.append(spec_limited.flux[0].value)
-                    wavelengthContinuumRegions.append(WavelenghtLowerLimit)
-                    fluxContinuumRegions.append(spec_limited.flux[0].value)
-                    wavelengthContinuumRegions.append(row[0].value - padding)
-                    fluxContinuumRegions.append(0)
-                    wavelengthContinuumRegions.append(row[0].value - padding)
-                    previousLine = row[0].value
+                    # Try identify lines
+                    lines.add_column(name='match', col='          ')
+                    for row in lines:
+                        if (Halpha > 0 and abs(row[0].value - Halpha) < 10):
+                            row[3] = HalphaLabel
+                        elif (Hbeta > 0 and abs(row[0].value - Hbeta) < 10):
+                            row[3] = HbetaLabel
+                        elif (Hgamma > 0 and abs(row[0].value - Hgamma) < 10):
+                            row[3] = HgammaLabel
+                        elif (Hdelta > 0 and abs(row[0].value - Hdelta) < 10):
+                            row[3] = HdeltaLabel
+                        else:
+                            row[3] = ''
                     
-                elif (previousLine > 0 and row[0].value - padding > previousLine and row[0].value + padding < WavelenghtUpperLimit):
-                    includeRegions.append((previousLine + padding, row[0].value - padding) * u.AA)
-                    excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
-                    # Include regions
-                    fluxContinuumRegions.append(0)
-                    wavelengthContinuumRegions.append(previousLine + padding)
-                    fluxContinuumRegions.append(spec_limited.flux[0].value)
-                    wavelengthContinuumRegions.append((previousLine + padding))
-                    fluxContinuumRegions.append(spec_limited.flux[0].value)
-                    wavelengthContinuumRegions.append((row[0].value - padding))
-                    fluxContinuumRegions.append(0)
-                    wavelengthContinuumRegions.append((row[0].value - padding))
-                    previousLine = row[0].value
+                    if debug:
+                        report.write('Initial lines found (noise region uncertainty factor 1):' + '\n')
+                        report.write(tabulate(lines, headers=['Line center','Type','Index']) + '\n')
+                        report.write('\n')
                 
-            # Add last region until end of spectrum
-            if (previousLine + padding < WavelenghtUpperLimit):
-                includeRegions.append((previousLine + padding, WavelenghtUpperLimit) * u.AA)
-                # Include last region
-                fluxContinuumRegions.append(0)
-                wavelengthContinuumRegions.append(previousLine + padding)
-                fluxContinuumRegions.append(spec_limited.flux[0].value)
-                wavelengthContinuumRegions.append(previousLine + padding)
-                fluxContinuumRegions.append(spec_limited.flux[0].value)
-                wavelengthContinuumRegions.append(WavelenghtUpperLimit)
-            else:
-                # Include last region
-                fluxContinuumRegions.append(0)
-                wavelengthContinuumRegions.append(WavelenghtUpperLimit)
-                
-            if debug:
-                report.write('Continuum include regions:' + '\n')
-                report.write(tabulate(includeRegions, headers=['Start','End']) + '\n')
-                report.write('\n')
-                
-                report.write('Continuum exclude regions:' + '\n')
-                report.write(tabulate(excludeRegions, headers=['Start','End']) + '\n')
-                report.write('\n')
-            
-            # Draw the continuum regions for reference
-            if debug:
-                report.write('Continuum regions:' + '\n')
-                report.write(repr(fluxContinuumRegions) + '\n')
-                report.write(repr(wavelengthContinuumRegions) + '\n')
-                report.write('\n')
-            ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions)
-            
-            # If no lines found, be sure we add the whole spectrum
-            if (len(includeRegions) <= 0):
-                includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
-                
-            ax6.set_ylabel('Continuum')
-
-            # Exclude atmosferic windows
-            excludeRegions.append((13000, 15000) * u.AA)
-            excludeRegions.append((18000, 20000) * u.AA)
-
-            # Try detect the contiuum on a first iteration
-            if ContinuumPolynomialModel == 'Polynomial1D':
-                g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
-            elif ContinuumPolynomialModel == 'Chebyshev1D':
-                g1_fit = fit_continuum(spectrum=spec, model=models.Chebyshev1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
-            elif ContinuumPolynomialModel == 'Legendre1D':
-                g1_fit = fit_continuum(spectrum=spec, model=models.Legendre1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
-            elif ContinuumPolynomialModel == 'Hermite1D':
-                g1_fit = fit_continuum(spectrum=spec, model=models.Hermite1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
-            else:
-                g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
-
-            y_continuum_fitted = g1_fit(spec.wavelength)
-            ax6.plot(spec.wavelength, spec.flux)
-            ax6.plot(spec.wavelength, y_continuum_fitted)
-            
-            ax7.set_ylabel('Normalised')
-            spec_normalized = spec / y_continuum_fitted
-            spec_flux = spec - y_continuum_fitted
-            ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
-            ax7.set_ylim((-1, 2))
-
-            ax8.set_ylabel('Flux')
-            ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
-            
-            # Find now lines by thresholding using the flux substracted contiuum spectrum
-            noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
-            spec_noise = noise_region_uncertainty(spec_flux, noise_region)
-            lines = find_lines_threshold(spec_noise, noise_factor=1)
-            numLinesSecondIteration = len(lines)
-            
-            # Try fit continuum again with new lines found
-            report.write('Num. lines first iteration: ' + str(numLinesFirstIteration) + '\n')
-            report.write('Num. lines second iteration: ' + str(numLinesSecondIteration) + '\n')
-            report.write('\n')
-            if (numLinesFirstIteration != numLinesSecondIteration):
                 includeRegions = []
                 excludeRegions = []
                 wavelengthContinuumRegions = []
                 fluxContinuumRegions = [] # As reference we will use the first flux value on the spectrum as include region and 0
                 previousLine = 0
-                padding = 25
+                padding = 50
                 for row in lines:
                     if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
                         # First line found, add first part of the spectrum
@@ -848,28 +790,35 @@ def main(argv):
                     # Include last region
                     fluxContinuumRegions.append(0)
                     wavelengthContinuumRegions.append(WavelenghtUpperLimit)
-                
+                    
                 if debug:
-                    report.write('New continuum include regions:' + '\n')
+                    report.write('Continuum include regions:' + '\n')
                     report.write(tabulate(includeRegions, headers=['Start','End']) + '\n')
                     report.write('\n')
                     
-                    report.write('New continuum exclude regions:' + '\n')
+                    report.write('Continuum exclude regions:' + '\n')
                     report.write(tabulate(excludeRegions, headers=['Start','End']) + '\n')
                     report.write('\n')
-                    
+                
                 # Draw the continuum regions for reference
+                if debug:
+                    report.write('Continuum regions:' + '\n')
+                    report.write(repr(fluxContinuumRegions) + '\n')
+                    report.write(repr(wavelengthContinuumRegions) + '\n')
+                    report.write('\n')
                 ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions)
                 
                 # If no lines found, be sure we add the whole spectrum
                 if (len(includeRegions) <= 0):
                     includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
-                
+                    
+                ax6.set_ylabel('Continuum')
+
                 # Exclude atmosferic windows
                 excludeRegions.append((13000, 15000) * u.AA)
                 excludeRegions.append((18000, 20000) * u.AA)
 
-                # Try detect the contiuum on a second iteration
+                # Try detect the contiuum on a first iteration
                 if ContinuumPolynomialModel == 'Polynomial1D':
                     g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
                 elif ContinuumPolynomialModel == 'Chebyshev1D':
@@ -882,16 +831,17 @@ def main(argv):
                     g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
 
                 y_continuum_fitted = g1_fit(spec.wavelength)
+                
+                # Guardar el continuo en un fichero
+                if (SaveContinuum != None):
+                    save_continuum_to_file(spec.wavelength, y_continuum_fitted, output_path, f"{(counter+1):03}_{SaveContinuum}")
+                
+                ax6.plot(spec.wavelength, spec.flux)
                 ax6.plot(spec.wavelength, y_continuum_fitted)
                 
+                ax7.set_ylabel('Normalised')
                 spec_normalized = spec / y_continuum_fitted
                 spec_flux = spec - y_continuum_fitted
-                ax7.clear()
-                ax7.set_ylabel('Normalised')
-                ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
-                ax7.set_ylim((-1, 2))
-
-                ax8.clear()
                 ax8.set_ylabel('Flux')
                 ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
                 
@@ -899,6 +849,117 @@ def main(argv):
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
                 spec_noise = noise_region_uncertainty(spec_flux, noise_region)
                 lines = find_lines_threshold(spec_noise, noise_factor=1)
+                numLinesSecondIteration = len(lines)
+                
+                # Try fit continuum again with new lines found
+                report.write('Num. lines first iteration: ' + str(numLinesFirstIteration) + '\n')
+                report.write('Num. lines second iteration: ' + str(numLinesSecondIteration) + '\n')
+                report.write('\n')
+                if (numLinesFirstIteration != numLinesSecondIteration):
+                    includeRegions = []
+                    excludeRegions = []
+                    wavelengthContinuumRegions = []
+                    fluxContinuumRegions = [] # As reference we will use the first flux value on the spectrum as include region and 0
+                    previousLine = 0
+                    padding = 25
+                    for row in lines:
+                        if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
+                            # First line found, add first part of the spectrum
+                            includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
+                            excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
+                            # Include first regions
+                            fluxContinuumRegions.append(spec_limited.flux[0].value)
+                            wavelengthContinuumRegions.append(WavelenghtLowerLimit)
+                            fluxContinuumRegions.append(spec_limited.flux[0].value)
+                            wavelengthContinuumRegions.append(row[0].value - padding)
+                            fluxContinuumRegions.append(0)
+                            wavelengthContinuumRegions.append(row[0].value - padding)
+                            previousLine = row[0].value
+                            
+                        elif (previousLine > 0 and row[0].value - padding > previousLine and row[0].value + padding < WavelenghtUpperLimit):
+                            includeRegions.append((previousLine + padding, row[0].value - padding) * u.AA)
+                            excludeRegions.append((row[0].value - padding, row[0].value + padding) * u.AA)
+                            # Include regions
+                            fluxContinuumRegions.append(0)
+                            wavelengthContinuumRegions.append(previousLine + padding)
+                            fluxContinuumRegions.append(spec_limited.flux[0].value)
+                            wavelengthContinuumRegions.append((previousLine + padding))
+                            fluxContinuumRegions.append(spec_limited.flux[0].value)
+                            wavelengthContinuumRegions.append((row[0].value - padding))
+                            fluxContinuumRegions.append(0)
+                            wavelengthContinuumRegions.append((row[0].value - padding))
+                            previousLine = row[0].value
+                        
+                    # Add last region until end of spectrum
+                    if (previousLine + padding < WavelenghtUpperLimit):
+                        includeRegions.append((previousLine + padding, WavelenghtUpperLimit) * u.AA)
+                        # Include last region
+                        fluxContinuumRegions.append(0)
+                        wavelengthContinuumRegions.append(previousLine + padding)
+                        fluxContinuumRegions.append(spec_limited.flux[0].value)
+                        wavelengthContinuumRegions.append(previousLine + padding)
+                        fluxContinuumRegions.append(spec_limited.flux[0].value)
+                        wavelengthContinuumRegions.append(WavelenghtUpperLimit)
+                    else:
+                        # Include last region
+                        fluxContinuumRegions.append(0)
+                        wavelengthContinuumRegions.append(WavelenghtUpperLimit)
+                    
+                    if debug:
+                        report.write('New continuum include regions:' + '\n')
+                        report.write(tabulate(includeRegions, headers=['Start','End']) + '\n')
+                        report.write('\n')
+                        
+                        report.write('New continuum exclude regions:' + '\n')
+                        report.write(tabulate(excludeRegions, headers=['Start','End']) + '\n')
+                        report.write('\n')
+                        
+                    # Draw the continuum regions for reference
+                    ax5.plot(wavelengthContinuumRegions, fluxContinuumRegions)
+                    
+                    # If no lines found, be sure we add the whole spectrum
+                    if (len(includeRegions) <= 0):
+                        includeRegions.append((WavelenghtLowerLimit, WavelenghtUpperLimit) * u.AA)        
+                    
+                    # Exclude atmosferic windows
+                    excludeRegions.append((13000, 15000) * u.AA)
+                    excludeRegions.append((18000, 20000) * u.AA)
+
+                    # Try detect the contiuum on a second iteration
+                    if ContinuumPolynomialModel == 'Polynomial1D':
+                        g1_fit = fit_continuum(spectrum=spec, model=models.Polynomial1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                    elif ContinuumPolynomialModel == 'Chebyshev1D':
+                        g1_fit = fit_continuum(spectrum=spec, model=models.Chebyshev1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                    elif ContinuumPolynomialModel == 'Legendre1D':
+                        g1_fit = fit_continuum(spectrum=spec, model=models.Legendre1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                    elif ContinuumPolynomialModel == 'Hermite1D':
+                        g1_fit = fit_continuum(spectrum=spec, model=models.Hermite1D(ContinuumPolynomialModelDegree), exclude_regions=SpectralRegion(excludeRegions))
+                    else:
+                        g1_fit = fit_continuum(spec, exclude_regions=SpectralRegion(excludeRegions))
+
+                    y_continuum_fitted = g1_fit(spec.wavelength)
+
+                    # Guardar el nuevo continuo en el mismo fichero
+                    if (SaveContinuum != None):
+                        save_continuum_to_file(spec.wavelength, y_continuum_fitted, output_path, f"{(counter+1):03}_{SaveContinuum}")
+                        
+                    ax6.plot(spec.wavelength, y_continuum_fitted)
+                    
+                    spec_normalized = spec / y_continuum_fitted
+                    spec_flux = spec - y_continuum_fitted
+                    ax7.clear()
+                    ax7.set_ylabel('Normalised')
+                    ax7.plot(spec_normalized.spectral_axis, spec_normalized.flux)
+                    ax7.set_ylim((-1, 2))
+
+                    ax8.clear()
+                    ax8.set_ylabel('Flux')
+                    ax8.plot(spec_flux.spectral_axis, spec_flux.flux)
+                    
+                    # Find now lines by thresholding using the flux substracted contiuum spectrum
+                    noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
+                    spec_noise = noise_region_uncertainty(spec_flux, noise_region)
+                    lines = find_lines_threshold(spec_noise, noise_factor=1)
                 
             # Try identify lines
             lines.add_column(name='match', col='          ')
@@ -947,21 +1008,21 @@ def main(argv):
             padding = 50
             if (Halpha > 0):
                 ax1.set_xlim(Halpha - padding, Halpha + padding)
-                ax1.set_xlabel(HalphaLabel)
+                ax1.set_xlabel(html_to_mathtext(HalphaLabel))
                 ax1.plot(spec_flux.spectral_axis, spec_flux.flux)
             if (Hbeta > 0):
                 ax2.set_xlim(Hbeta - padding, Hbeta + padding)
-                ax2.set_xlabel(HbetaLabel)
+                ax2.set_xlabel(html_to_mathtext(HbetaLabel))
                 ax2.set_ylabel('')
                 ax2.plot(spec_flux.spectral_axis, spec_flux.flux)
             if (Hgamma > 0):
                 ax3.set_xlim(Hgamma - padding, Hgamma + padding)
-                ax3.set_xlabel(HgammaLabel)
+                ax3.set_xlabel(html_to_mathtext(HgammaLabel))
                 ax3.plot(spec_flux.spectral_axis, spec_flux.flux)
                 ax3.set_ylabel('')
             if (Hdelta > 0):
                 ax4.set_xlim(Hdelta - padding, Hdelta + padding)
-                ax4.set_xlabel(HdeltaLabel)
+                ax4.set_xlabel(html_to_mathtext(HdeltaLabel))
                 ax4.set_ylabel('')
                 ax4.plot(spec_flux.spectral_axis, spec_flux.flux)
             
@@ -1002,7 +1063,7 @@ def main(argv):
                 hbCalculations = measure_line_continuum_bigger_padding(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             else:
                 hbCalculations = empty_measure_line_values()
-
+    
             if (Hgamma > 0):
                 hgCalculations = measure_line_continuum_bigger_padding(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
             else:
@@ -1129,7 +1190,7 @@ def main(argv):
                 xs.append(300000 * ((wavelengthHa.value - Halpha) / Halpha))
                 ys.append(fluxHa.value / maxHalpha)
 
-                ax.plot(xs[0], ys[0], label = HalphaLabel)
+                ax.plot(xs[0], ys[0], label = html_to_mathtext(HalphaLabel))
 
                 mins.append(min(xs[0]))
                 maxs.append(max(xs[0]))
@@ -1147,7 +1208,7 @@ def main(argv):
                 xs.append(300000 * ((wavelengthHb.value - Hbeta) / Hbeta))
                 ys.append(fluxHb.value / maxHbeta)
 
-                ax.plot(xs[1], ys[1], label = HbetaLabel)
+                ax.plot(xs[1], ys[1], label = html_to_mathtext(HbetaLabel))
 
                 mins.append(min(xs[1]))
                 maxs.append(max(xs[1]))
@@ -1165,7 +1226,7 @@ def main(argv):
                 xs.append(300000 * ((wavelengthHg.value - Hgamma) / Hgamma))
                 ys.append(fluxHg.value / maxHgamma)
 
-                ax.plot(xs[2], ys[2], label = HgammaLabel)
+                ax.plot(xs[2], ys[2], label = html_to_mathtext(HgammaLabel))
 
                 mins.append(min(xs[2]))
                 maxs.append(max(xs[2]))
@@ -1183,7 +1244,7 @@ def main(argv):
                 xs.append(300000 * ((wavelengthHd.value - Hdelta) / Hdelta))
                 ys.append(fluxHd.value / maxHdelta)
 
-                ax.plot(xs[3], ys[3], label = HdeltaLabel)
+                ax.plot(xs[3], ys[3], label = html_to_mathtext(HdeltaLabel))
 
                 mins.append(min(xs[3]))
                 maxs.append(max(xs[3]))
@@ -1299,7 +1360,7 @@ def main(argv):
                 ax1 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
 
-                ax1.set_xlabel(HalphaLabel)
+                ax1.set_xlabel(html_to_mathtext(HalphaLabel))
                 ax1.plot(wavelengthHa, fluxHa, label = 'l')
                 ax1.plot(restored_median_xs[0], restored_median_ys[0], label = 'm')
                 ax1.axvline(x=Halpha, color='m', linestyle='dashed')
@@ -1348,7 +1409,7 @@ def main(argv):
                 ax2 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
 
-                ax2.set_xlabel(HbetaLabel)
+                ax2.set_xlabel(html_to_mathtext(HbetaLabel))
                 ax2.set_ylabel('')
                 ax2.plot(wavelengthHb, fluxHb, label = 'l')
                 ax2.plot(restored_median_xs[1], restored_median_ys[1], label = 'm')
@@ -1398,7 +1459,7 @@ def main(argv):
                 ax3 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
 
-                ax3.set_xlabel(HgammaLabel)
+                ax3.set_xlabel(html_to_mathtext(HgammaLabel))
                 ax3.set_ylabel('')
                 ax3.plot(wavelengthHg, fluxHg, label = 'l')
                 ax3.plot(restored_median_xs[2], restored_median_ys[2], label = 'm')
@@ -1448,7 +1509,7 @@ def main(argv):
                 ax4 = fig.add_subplot(gs[0, columns])
                 columns = columns + 1
 
-                ax4.set_xlabel(HdeltaLabel)
+                ax4.set_xlabel(html_to_mathtext(HdeltaLabel))
                 ax4.set_ylabel('')
                 ax4.plot(wavelengthHd, fluxHd, label = 'l')
                 ax4.plot(restored_median_xs[3], restored_median_ys[3], label = 'm')
@@ -1512,7 +1573,7 @@ def main(argv):
                 fig, ax = plt.subplots()
                 fig.set_figwidth(10)
                 fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHa_deblended_interpolated, label = HalphaLabel)
+                ax.plot(spec.wavelength, fluxHa_deblended_interpolated, label = html_to_mathtext(HalphaLabel))
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
                 fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HalphaLabel.lower() + '_deblended.png')
@@ -1532,7 +1593,7 @@ def main(argv):
                 fig, ax = plt.subplots()
                 fig.set_figwidth(10)
                 fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHb_deblended_interpolated, label = HbetaLabel)
+                ax.plot(spec.wavelength, fluxHb_deblended_interpolated, label = html_to_mathtext(HbetaLabel))
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
                 fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HbetaLabel.lower() + '_deblended.png')
@@ -1552,7 +1613,7 @@ def main(argv):
                 fig, ax = plt.subplots()
                 fig.set_figwidth(10)
                 fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHg_deblended_interpolated, label = HgammaLabel)
+                ax.plot(spec.wavelength, fluxHg_deblended_interpolated, label = html_to_mathtext(HgammaLabel))
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
                 fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HgammaLabel.lower() + '_deblended.png')
@@ -1572,7 +1633,7 @@ def main(argv):
                 fig, ax = plt.subplots()
                 fig.set_figwidth(10)
                 fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHd_deblended_interpolated, label = HdeltaLabel)
+                ax.plot(spec.wavelength, fluxHd_deblended_interpolated, label = html_to_mathtext(HdeltaLabel))
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
                 fig.tight_layout()
                 plt.savefig(output_path + filename + '.' + HdeltaLabel.lower() + '_deblended.png')
@@ -1755,13 +1816,13 @@ def main(argv):
             fig.set_figheight(7)
             
             if (Halpha > 0):
-                ax.plot(evolutionPlane, HalphaEvolution, label = HalphaLabel)
+                ax.plot(evolutionPlane, HalphaEvolution, label = html_to_mathtext(HalphaLabel))
             if (Hdelta > 0):
-                ax.plot(evolutionPlane, HbetaEvolution, label = HbetaLabel)
+                ax.plot(evolutionPlane, HbetaEvolution, label = html_to_mathtext(HbetaLabel))
             if (Hgamma > 0):
-                ax.plot(evolutionPlane, HgammaEvolution, label = HgammaLabel)
+                ax.plot(evolutionPlane, HgammaEvolution, label = html_to_mathtext(HgammaLabel))
             if (Hdelta > 0):
-                ax.plot(evolutionPlane, HdeltaEvolution, label = HdeltaLabel)
+                ax.plot(evolutionPlane, HdeltaEvolution, label = html_to_mathtext(HdeltaLabel))
 
             ax.set(xlabel = EvolutionLabel, ylabel = f"Flux ({(u.erg / u.Angstrom / u.s / u.cm / u.cm).to_string('latex_inline')})")
             ax.set_yscale('log')
@@ -1779,9 +1840,9 @@ def main(argv):
                 fig, ax = plt.subplots()
                 fig.set_figwidth(10)
                 fig.set_figheight(7)
-                ax.plot(evolutionPlane, Halpha_Hbeta, label = HalphaLabel + '/' + HbetaLabel)
-                ax.plot(evolutionPlane, Hgamma_Hbeta, label = HgammaLabel + '/' + HbetaLabel)
-                ax.plot(evolutionPlane, Hdelta_Hbeta, label = HdeltaLabel + '/' + HbetaLabel)
+                ax.plot(evolutionPlane, Halpha_Hbeta, label = html_to_mathtext(HalphaLabel) + '/' + html_to_mathtext(HbetaLabel))
+                ax.plot(evolutionPlane, Hgamma_Hbeta, label = html_to_mathtext(HgammaLabel) + '/' + html_to_mathtext(HbetaLabel))
+                ax.plot(evolutionPlane, Hdelta_Hbeta, label = html_to_mathtext(HdeltaLabel) + '/' + html_to_mathtext(HbetaLabel))
                 ax.set(xlabel = EvolutionLabel, ylabel = 'Line ratio')
                 ax.set_yscale('log')
                 if (evolutionPlaneLog):
@@ -1798,13 +1859,13 @@ def main(argv):
             fig.set_figheight(7)
 
             if (Halpha > 0):
-                ax.plot(evolutionPlane, HalphaFWHMEvolution, label = HalphaLabel)
+                ax.plot(evolutionPlane, HalphaFWHMEvolution, label = html_to_mathtext(HalphaLabel))
             if (Hbeta > 0):
-                ax.plot(evolutionPlane, HbetaFWHMEvolution, label = HbetaLabel)
+                ax.plot(evolutionPlane, HbetaFWHMEvolution, label = html_to_mathtext(HbetaLabel))
             if (Hgamma > 0):
-                ax.plot(evolutionPlane, HgammaFWHMEvolution, label = HgammaLabel)
+                ax.plot(evolutionPlane, HgammaFWHMEvolution, label = html_to_mathtext(HgammaLabel))
             if (Hdelta > 0):
-                ax.plot(evolutionPlane, HdeltaFWHMEvolution, label = HdeltaLabel)
+                ax.plot(evolutionPlane, HdeltaFWHMEvolution, label = html_to_mathtext(HdeltaLabel))
 
             ax.set(xlabel = EvolutionLabel, ylabel = f"FWHM ({(u.kilometer / u.second)})")
             ax.set_yscale('log')
