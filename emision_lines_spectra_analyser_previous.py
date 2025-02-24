@@ -323,7 +323,7 @@ def empty_measure_line_values():
     return [u.Quantity(0), u.Quantity(0), u.Quantity(0), u.Quantity(0), 0, 0]
 
 def print_help():
-    print('display_fits_spectra_advance.py')
+    print('display_fits_spectra_advance_previous.py')
     print('         --debug')
     print('         --only-one')
     print('         --path <include path for spectra folder>')

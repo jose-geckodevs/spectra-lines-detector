@@ -425,16 +425,17 @@ def main(argv):
                 report.write('\n')
 
             fig = plt.figure()
+            figureColumns = 4
             fig.set_figwidth(15)
             columns = len(lines)
-            rows = (columns // 4) + (1 if columns % 4 != 0 else 0)
-            fig.set_figheight((5 * rows) + (5 * 4))
-            gs = fig.add_gridspec(rows + 4, 4)  # Ajustar el tamaño de la cuadrícula para incluir las filas adicionales
+            rows = (columns // figureColumns) + (1 if columns % figureColumns != 0 else 0)
+            fig.set_figheight((5 * rows) + (5 * figureColumns))
+            gs = fig.add_gridspec(rows + 4, figureColumns)  # Ajustar el tamaño de la cuadrícula para incluir las filas adicionales
 
             axes = []
             for i in range(columns):
-                row = i // 4
-                col = i % 4
+                row = i // figureColumns
+                col = i % figureColumns
                 axes.append(fig.add_subplot(gs[row, col]))
             
             ax5 = fig.add_subplot(gs[rows, :])
@@ -897,16 +898,17 @@ def main(argv):
 
             # Deblending process
             fig = plt.figure()
+            figureColumns = 2
             fig.set_figwidth(15)
             columns = len(lines)
-            rows = (columns // 4) + (1 if columns % 4 != 0 else 0)
+            rows = (columns // figureColumns) + (1 if columns % figureColumns != 0 else 0)
             fig.set_figheight(5 * rows)
-            gs = fig.add_gridspec(rows, 4)  # Ajustar el tamaño de la cuadrícula para incluir las filas adicionales
+            gs = fig.add_gridspec(rows, figureColumns)  # Ajustar el tamaño de la cuadrícula para incluir las filas adicionales
             
             axes = []
             for i in range(columns):
-                row = i // 4
-                col = i % 4
+                row = i // figureColumns
+                col = i % figureColumns
                 axes.append(fig.add_subplot(gs[row, col]))
             
             fit_calculations = []
@@ -965,6 +967,8 @@ def main(argv):
                 else:
                     axes[i].plot([],[], label = 'l - m')
                     axes[i].plot([],[], label = 'd')
+                    
+                axes[i].legend()
 
             plt.legend()
             fig.tight_layout()
