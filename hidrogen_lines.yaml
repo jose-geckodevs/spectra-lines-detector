@@ -1,0 +1,21 @@
+lines:
+  - centroid: 21656
+    label: Br&gamma;
+  - centroid: 18751
+    label: Pa&alpha;
+  - centroid: 12818
+    label: Pa&beta;
+  - centroid: 9546
+    label: Pa&epsilon;
+  - centroid: 9229
+    label: Pa&zeta;
+  - centroid: 9015
+    label: Pa&eta;
+  - centroid: 6563
+    label: H&alpha;
+  - centroid: 4861
+    label: H&beta;
+  - centroid: 4341
+    label: H&gamma;
+  - centroid: 4102
+    label: H&delta;

@@ -28,13 +28,10 @@ import pandas as pd
 from dateutil.parser import parse
 import math
 import statistics
+import yaml
+import html
 
-VERSION = "1.0"
-
-HALPHA_REF = 6563
-HBETA_REF = 4861
-HGAMMA_REF = 4341
-HDELTA_REF = 4102
+VERSION = "2.0"
 
 def find_nearest_index(array, value):
     idx = np.searchsorted(array, value, side="left")
@@ -81,175 +78,6 @@ def reduce_sorted_fits_array_by_filename(item: list):
 
 def reduce_sorted_fits_array_by_date(item: list):
     return item[1]
-
-def measure_lines_fixed(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
-    """Deprecated"""
-    _padding = 50
-    _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
-    _fluxData = line_flux(_spec_flux, regions = _regions)
-    _fwhmData = fwhm(_spec_flux, regions = _regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_flux, regions = _regions)
-
-    return _fluxData, _fwhmData, _equivalentWidthData, _centroidData, _padding
-
-def measure_line_max_fwhm(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
-    """Deprecated"""
-    _padding = 5
-    _precision = 2
-    _previousFwhm = u.Quantity(0)
-    _regions = []
-    while(_padding < 100):
-        _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
-        _fwhmData = fwhm(_spec_flux, regions = _regions)
-        _indexLeftFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _padding)
-        _indexRightFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _padding)
-        if ((_spec_flux.flux[_indexLeftFlux] < 0 or _spec_flux.flux[_indexRightFlux] < 0) and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
-            break
-        _previousFwhm = _fwhmData[0]
-        _padding += 5
-
-    _fluxData = line_flux(_spec_flux, regions = _regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_flux, regions = _regions)
-
-    if (_padding >= 100):
-        _padding = 95
-    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _padding, _padding
-
-def measure_line_max_fwhm_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D):
-    """Deprecated"""
-    _leftPadding = 5
-    _rightPadding = 5
-    _precision = 2
-    _previousFwhm = u.Quantity(0)
-    _regions = []
-    while(_leftPadding < 100):
-        _regions = [SpectralRegion((_center - _leftPadding) * u.AA, _center * u.AA )]
-        _fwhmData = fwhm(_spec_flux, regions = _regions)
-        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
-        if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
-            break
-        _previousFwhm = _fwhmData[0]
-        _leftPadding += 5
-
-    while(_rightPadding < 100):
-        _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
-        _fwhmData = fwhm(_spec_flux, regions = _regions)
-        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
-        if (_spec_flux.flux[_indexFlux] < 0 and round(_fwhmData[0].value, _precision) <= round(_previousFwhm.value, _precision)):
-            break
-        _previousFwhm = _fwhmData[0]
-        _rightPadding += 5
-
-    _fluxData = line_flux(_spec_flux, regions = _regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_flux, regions = _regions)
-
-    if (_leftPadding >= 100):
-        _leftPadding = 95
-    if (_rightPadding >= 100):
-        _rightPadding = 95
-    return _fluxData[0], _previousFwhm, _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
-
-def measure_line_continuum_asimetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
-    """Deprecated"""
-    _leftPadding = _angstromIncrement
-    _rightPadding = _angstromIncrement
-    _regions = []
-
-    _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
-
-    #median = statistics.median(_flux.value)
-    #sd = statistics.stdev(_flux.value)
-    # Best calculate median from whole spectrum
-    median = statistics.median(_spec_flux.flux.value)
-    sd = statistics.stdev(_spec_flux.flux.value)
-
-    min_continuum = median - sd * _histogramStDevPercent
-    max_continuum = median + sd * _histogramStDevPercent
-
-    _count_pass_continuum = 0
-    while(_leftPadding < 200):
-        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _leftPadding)
-        _flux = _spec_flux.flux[_indexFlux].value
-        if (_flux <= max_continuum and _flux >= min_continuum):
-            _count_pass_continuum = _count_pass_continuum + 1
-            if (_count_pass_continuum > 2):
-                break
-        else:
-            _count_pass_continuum = 0
-        _leftPadding += 1
-
-    _count_pass_continuum = 0
-    while(_rightPadding < 200):
-        _indexFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _rightPadding)
-        _flux = _spec_flux.flux[_indexFlux].value
-        if (_flux <= max_continuum and _flux >= min_continuum):
-            _count_pass_continuum = _count_pass_continuum + 1
-            if (_count_pass_continuum > 2):
-                break
-        else:
-            _count_pass_continuum = 0
-        _rightPadding += 1
-
-    if (_leftPadding >= 200):
-        _leftPadding = 200 - _angstromIncrement
-    if (_rightPadding >= 200):
-        _rightPadding = 200 - _angstromIncrement
-    _regions = [SpectralRegion((_center - _leftPadding) * u.AA, (_center + _rightPadding) * u.AA )]
-
-    _fwhmData = fwhm(_spec_flux, regions = _regions)
-    _fluxData = line_flux(_spec_flux, regions = _regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_flux, regions = _regions)
-
-    # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
-
-    return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _leftPadding, _rightPadding
-
-def measure_line_continuum_simetric(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
-    """Deprecated"""
-    _padding = _angstromIncrement
-    _regions = []
-
-    _flux, _wavelength = limit_spectra_array(_center - 200, _center + 200, _spec_flux)
-
-    #median = statistics.median(_flux.value)
-    #sd = statistics.stdev(_flux.value)
-    # Best calculate median from whole spectrum
-    median = statistics.median(_spec_flux.flux.value)
-    sd = statistics.stdev(_spec_flux.flux.value)
-
-    min_continuum = median - sd * _histogramStDevPercent
-    max_continuum = median + sd * _histogramStDevPercent
-
-    _count_pass_continuum = 0
-    while(_padding < 200):
-        _indexLeftFlux = find_nearest_index(_spec_flux.wavelength.value, _center - _padding)
-        _indexRightFlux = find_nearest_index(_spec_flux.wavelength.value, _center + _padding)
-        _leftFlux = _spec_flux.flux[_indexLeftFlux].value
-        _rightFlux = _spec_flux.flux[_indexRightFlux].value
-        if ((_leftFlux <= max_continuum and _leftFlux >= min_continuum) or (_rightFlux <= max_continuum and _rightFlux >= min_continuum)):
-            _count_pass_continuum = _count_pass_continuum + 1
-            if (_count_pass_continuum > 2):
-                break
-        else:
-            _count_pass_continuum = 0
-        _padding += 1
-
-    if (_padding >= 200):
-        _padding = 200 - _angstromIncrement
-    _regions = [SpectralRegion((_center - _padding) * u.AA, (_center + _padding) * u.AA )]
-
-    _fwhmData = fwhm(_spec_flux, regions = _regions)
-    _fluxData = line_flux(_spec_flux, regions = _regions)
-    _equivalentWidthData = equivalent_width(_spec_norm, continuum=1, regions = _regions)
-    _centroidData = centroid(_spec_flux, regions = _regions)
-
-    # TODO: if we reach the padding limit, we could try call recursivelly this function increasing the histogram stdev percent
-
-    return _fluxData[0], _fwhmData[0], _equivalentWidthData[0], _centroidData[0], _padding, _padding
 
 def measure_line_continuum_bigger_padding(_center: float, _spec_norm: Spectrum1D, _spec_flux: Spectrum1D, _angstromIncrement: int, _histogramStDevPercent: float):
     # Improved by using the bigger padding found (the previous simetric one would be like using the smaller one)
@@ -334,16 +162,13 @@ def print_help():
     print('         --model <dust extintion model>')
     print('         --angstromIncrement <int value to increment when finding lines continuum>')
     print('         --histogramStDevPercent <standard deviation from spectrum histogram to use when finding lines continuum>')
-    print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
-    print('         --l[1,2,3,4]centroid <line angstrom centroid> --l[1,2,3,4]label <line label>')
-    print('         --evolutionlabel <evolution label>')
+    print('         --linesConfig <path to lines configuration file>')
     print('         --centroidDifferenceInSpeed <int value>')
     print('         --continuumPolynomialModel <Polynomial1D, Chebyshev1D, Legendre1D, Hermite1D>')
     print('         --continuumPolynomialModelDegree <1, 2, 3, 4...>')
     print('         --saveContinuum <file prefix to save continuum to file>')
     print('         --loadContinuum <path to load continuum files>')
     print('If no wavelenght limtis configured, 4000 to 7000 Angstrom will be used')
-    print('If no lines configured, Halpha(4), Hbeta(3), Hgamma(2) and Hdelta(1) will be used')
 
 def save_continuum_to_file(wavelength, continuum, output_path, filename):
     continuum_filename = os.path.join(output_path + '/continuum', f"{filename}_continuum.dat")
@@ -351,6 +176,11 @@ def save_continuum_to_file(wavelength, continuum, output_path, filename):
 
 def html_to_mathtext(label):
     return label.replace('&', '$\\').replace(';', '$')
+
+def load_lines_from_config(config_path):
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config['lines']
 
 def main(argv):
     quantity_support() 
@@ -362,15 +192,6 @@ def main(argv):
     debug = False
     onlyOne = False
     
-    Halpha = HALPHA_REF
-    HalphaLabel = 'H&alpha;'
-    Hbeta = HBETA_REF
-    HbetaLabel = 'H&beta;'
-    Hgamma = HGAMMA_REF
-    HgammaLabel = 'H&gamma;'
-    Hdelta = HDELTA_REF
-    HdeltaLabel = 'H&delta;'
-    EvolutionLabel = 'Days after maximum'
     WavelenghtLowerLimit = 4000
     WavelenghtUpperLimit = 7000
     Ebv = 0
@@ -385,14 +206,13 @@ def main(argv):
     SaveContinuum = None
     LoadContinuum = None
     inputParams = ''
+    linesConfigPath = ''
 
     try:
         opts, args = getopt.getopt(argv,'hp:d',['help','path=','datPath=','datSeparator=','debug','only-one','ebv=','rv=','model=',
                                                 'wavelenghtLowerLimit=','wavelenghtUpperLimit=',
                                                 'angstromIncrement=','histogramStDevPercent=',
-                                                'l1centroid=','l2centroid=','l3centroid=','l4centroid=',
-                                                'l1label=','l2label=','l3label=','l4label=',
-                                                'folderSuffix=','evolutionlabel=','centroidDifferenceInSpeed=',
+                                                'linesConfig=','folderSuffix=','centroidDifferenceInSpeed=',
                                                 'continuumPolynomialModel=','continuumPolynomialModelDegree=',
                                                 'saveContinuum=','loadContinuum='])
     except getopt.GetoptError:
@@ -421,24 +241,8 @@ def main(argv):
             Rv = float(arg)
         elif opt in ('--model'):
             Model = eval(arg)
-        elif opt in ('--l1centroid'):
-            Hdelta = int(arg)
-        elif opt in ('--l1label'):
-            HdeltaLabel = arg
-        elif opt in ('--l2centroid'):
-            Hgamma = int(arg)
-        elif opt in ('--l2label'):
-            HgammaLabel = arg
-        elif opt in ('--l3centroid'):
-            Hbeta = int(arg)
-        elif opt in ('--l3label'):
-            HbetaLabel = arg
-        elif opt in ('--l4centroid'):
-            Halpha = int(arg)
-        elif opt in ('--l4label'):
-            HalphaLabel = arg
-        elif opt in ('--evolutionlabel'):
-            EvolutionLabel = arg
+        elif opt in ('--linesConfig'):
+            linesConfigPath = arg
         elif opt in ('--wavelenghtLowerLimit'):
             WavelenghtLowerLimit = int(arg)
         elif opt in ('--wavelenghtUpperLimit'):
@@ -480,22 +284,13 @@ def main(argv):
     if SaveContinuum != None and not os.path.exists(output_path + '/continuum'):
         os.makedirs(output_path + '/continuum')
 
+    if linesConfigPath:
+        lines = load_lines_from_config(linesConfigPath)
+    else:
+        lines = []
+
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        
-        HalphaEvolution = []
-        HbetaEvolution = []
-        HgammaEvolution = []
-        HdeltaEvolution = []
-        Halpha_Hbeta = []
-        Hgamma_Hbeta = []
-        Hdelta_Hbeta = []
-        HalphaFWHMEvolution = []
-        HbetaFWHMEvolution = []
-        HgammaFWHMEvolution = []
-        HdeltaFWHMEvolution = []
-        evolutionPlane = []
-        evolutionPlaneLog = False
         
         startTime = datetime.now()
         print('Start running at ' + startTime.strftime('%H:%M:%S'))
@@ -535,30 +330,13 @@ def main(argv):
             
             sortedFiles = list(map(reduce_sorted_fits_array_by_filename, sorted(listFITS)))
             sortedDates = list(map(reduce_sorted_fits_array_by_date, sorted(listFITS)))
-
-        # Set evolution graphs to log if number of days
-        if (sortedDates[0].isdigit()):
-            evolutionPlaneLog = True
-        elif (is_date(sortedDates[0], '%Y-%m-%d')):
-            evolutionPlaneLog = True
-        else:
-            evolutionPlaneLog = False
         
         # Prepare csv report
         numLines = 0
         csv_report = open(output_path + 'lines_measurements.csv', 'w')
         csv_report.write('Spectra file;')
-        if (Halpha > 0):
-            csv_report.write(HalphaLabel + ' centroid;' + HalphaLabel + ' flux;' + HalphaLabel + ' deblended flux;' + HalphaLabel + ' model flux;' + HalphaLabel + ' eqw;' + HalphaLabel + ' fwhm;')
-            numLines = numLines + 1
-        if (Hbeta > 0):
-            csv_report.write(HbetaLabel + ' centroid;' + HbetaLabel + ' flux;' + HbetaLabel + ' deblended flux;' + HbetaLabel + ' model flux;' + HbetaLabel + ' eqw;' + HbetaLabel + ' fwhm;')
-            numLines = numLines + 1
-        if (Hgamma > 0):
-            csv_report.write(HgammaLabel + ' centroid;' + HgammaLabel + ' flux;' + HgammaLabel + ' deblended flux;' + HgammaLabel+ ' model flux;' + HgammaLabel + ' eqw;' + HgammaLabel + ' fwhm;')
-            numLines = numLines + 1
-        if (Hdelta > 0):
-            csv_report.write(HdeltaLabel + ' centroid;' + HdeltaLabel + ' flux;' + HdeltaLabel + ' deblended flux;' + HdeltaLabel + ' model flux;' + HdeltaLabel + ' eqw;' + HdeltaLabel + ' fwhm;')
+        for line in lines:
+            csv_report.write(html.unescape(line['label']) + ' centroid;' + html.unescape(line['label']) + ' flux;' + html.unescape(line['label']) + ' deblended flux;' + html.unescape(line['label']) + ' model flux;' + html.unescape(line['label']) + ' eqw;' + html.unescape(line['label']) + ' fwhm;')
             numLines = numLines + 1
         csv_report.write('\n')
 
@@ -566,7 +344,7 @@ def main(argv):
         html_report = open(output_path + 'graph_report.html', 'w')
         html_report.write(f"<html><body>\n")
         html_report.write(f"<h1>Emission lines spectra analyser v{VERSION}</h1>\n")
-        html_report.write(f"<h2>Lines: {HalphaLabel} {HbetaLabel} {HgammaLabel} {HdeltaLabel}</h2>\n")
+        html_report.write(f"<h2>Lines: {', '.join([line['label'] for line in lines])}</h2>\n")
         html_report.write(f"<span>Generated at {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</span>\n")
         html_report.write(f"<br /><br />\n");
         counter = 0
@@ -647,39 +425,22 @@ def main(argv):
                 report.write('\n')
 
             fig = plt.figure()
-            #fig.suptitle(filename)
             fig.set_figwidth(15)
-            fig.set_figheight(25)
-            
-            columns = 0
-            if (Halpha > 0):
-                columns = columns + 1
-            if (Hbeta > 0):
-                columns = columns + 1
-            if (Hgamma > 0):
-                columns = columns + 1
-            if (Hdelta > 0):
-                columns = columns + 1
-            gs = fig.add_gridspec(5,columns)
+            columns = len(lines)
+            rows = (columns // 4) + (1 if columns % 4 != 0 else 0)
+            fig.set_figheight((5 * rows) + (5 * 4))
+            gs = fig.add_gridspec(rows + 4, 4)  # Ajustar el tamaño de la cuadrícula para incluir las filas adicionales
 
-            columns = 0
-            if (Halpha > 0):
-                ax1 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
-            if (Hbeta > 0):
-                ax2 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
-            if (Hgamma > 0):
-                ax3 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
-            if (Hdelta > 0):
-                ax4 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
+            axes = []
+            for i in range(columns):
+                row = i // 4
+                col = i % 4
+                axes.append(fig.add_subplot(gs[row, col]))
             
-            ax5 = fig.add_subplot(gs[1, :])
-            ax6 = fig.add_subplot(gs[2, :])
-            ax7 = fig.add_subplot(gs[3, :])
-            ax8 = fig.add_subplot(gs[4, :])
+            ax5 = fig.add_subplot(gs[rows, :])
+            ax6 = fig.add_subplot(gs[rows + 1, :])
+            ax7 = fig.add_subplot(gs[rows + 2, :])
+            ax8 = fig.add_subplot(gs[rows + 3, :])
             
             # Plot initial spectrum
             ax5.plot(spec_limited.wavelength, spec_limited.flux)
@@ -712,34 +473,30 @@ def main(argv):
                 # Find now lines by thresholding using the flux substracted contiuum spectrum
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
                 spec_noise = noise_region_uncertainty(spec_flux, noise_region)
-                lines = find_lines_threshold(spec_noise, noise_factor=1)
-                numLinesSecondIteration = len(lines)
+                lines_found = find_lines_threshold(spec_noise, noise_factor=1)
+                numLinesSecondIteration = len(lines_found)
 
             else:
                 # Try find the lines without the continuum
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
                 spec_noise = noise_region_uncertainty(spec, noise_region)
-                lines = find_lines_threshold(spec_noise, noise_factor=1)
-                numLinesFirstIteration = len(lines)
+                lines_found = find_lines_threshold(spec_noise, noise_factor=1)
+                numLinesFirstIteration = len(lines_found)
                 
                 if debug:
                     # Try identify lines
-                    lines.add_column(name='match', col='          ')
-                    for row in lines:
-                        if (Halpha > 0 and abs(row[0].value - Halpha) < 10):
-                            row[3] = HalphaLabel
-                        elif (Hbeta > 0 and abs(row[0].value - Hbeta) < 10):
-                            row[3] = HbetaLabel
-                        elif (Hgamma > 0 and abs(row[0].value - Hgamma) < 10):
-                            row[3] = HgammaLabel
-                        elif (Hdelta > 0 and abs(row[0].value - Hdelta) < 10):
-                            row[3] = HdeltaLabel
+                    lines_found.add_column(name='match', col='          ')
+                    for row in lines_found:
+                        for line in lines:
+                            if abs(row[0].value - line['centroid']) < 10:
+                                row[3] = line['label']
+                                break
                         else:
                             row[3] = ''
                     
                     if debug:
                         report.write('Initial lines found (noise region uncertainty factor 1):' + '\n')
-                        report.write(tabulate(lines, headers=['Line center','Type','Index']) + '\n')
+                        report.write(tabulate(lines_found, headers=['Line center','Type','Index']) + '\n')
                         report.write('\n')
                 
                 includeRegions = []
@@ -748,7 +505,7 @@ def main(argv):
                 fluxContinuumRegions = [] # As reference we will use the first flux value on the spectrum as include region and 0
                 previousLine = 0
                 padding = 50
-                for row in lines:
+                for row in lines_found:
                     if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
                         # First line found, add first part of the spectrum
                         includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
@@ -848,8 +605,8 @@ def main(argv):
                 # Find now lines by thresholding using the flux substracted contiuum spectrum
                 noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
                 spec_noise = noise_region_uncertainty(spec_flux, noise_region)
-                lines = find_lines_threshold(spec_noise, noise_factor=1)
-                numLinesSecondIteration = len(lines)
+                lines_found = find_lines_threshold(spec_noise, noise_factor=1)
+                numLinesSecondIteration = len(lines_found)
                 
                 # Try fit continuum again with new lines found
                 report.write('Num. lines first iteration: ' + str(numLinesFirstIteration) + '\n')
@@ -862,7 +619,7 @@ def main(argv):
                     fluxContinuumRegions = [] # As reference we will use the first flux value on the spectrum as include region and 0
                     previousLine = 0
                     padding = 25
-                    for row in lines:
+                    for row in lines_found:
                         if (previousLine <= 0 and row[0].value - padding > WavelenghtLowerLimit):
                             # First line found, add first part of the spectrum
                             includeRegions.append((WavelenghtLowerLimit, row[0].value - padding) * u.AA)
@@ -959,32 +716,28 @@ def main(argv):
                     # Find now lines by thresholding using the flux substracted contiuum spectrum
                     noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
                     spec_noise = noise_region_uncertainty(spec_flux, noise_region)
-                    lines = find_lines_threshold(spec_noise, noise_factor=1)
+                    lines_found = find_lines_threshold(spec_noise, noise_factor=1)
                 
             # Try identify lines
-            lines.add_column(name='match', col='          ')
-            for row in lines:
-                if (Halpha > 0 and abs(row[0].value - Halpha) < 10):
-                    row[3] = HalphaLabel
-                elif (Hbeta > 0 and abs(row[0].value - Hbeta) < 10):
-                    row[3] = HbetaLabel
-                elif (Hgamma > 0 and abs(row[0].value - Hgamma) < 10):
-                    row[3] = HgammaLabel
-                elif (Hdelta > 0 and abs(row[0].value - Hdelta) < 10):
-                    row[3] = HdeltaLabel
+            lines_found.add_column(name='match', col='          ')
+            for row in lines_found:
+                for line in lines:
+                    if abs(row[0].value - line['centroid']) < 10:
+                        row[3] = line['label']
+                        break
                 else:
                     row[3] = ''
             
             # Finally find most prominent lines
             noise_region = SpectralRegion(WavelenghtLowerLimit * u.AA, WavelenghtUpperLimit * u.AA)
             spec_noise = noise_region_uncertainty(spec_flux, noise_region)
-            lines = find_lines_threshold(spec_noise, noise_factor=0.5)
+            lines_found = find_lines_threshold(spec_noise, noise_factor=0.5)
             report.write('Most prominent line by noise factor\n')
             grouped_lines = []
             partial_grouped_lines = []
             partial_type = ''
             padding = 50
-            for row in lines:
+            for row in lines_found:
                 if (len(partial_grouped_lines) == 0):
                     partial_type = row[1]
                     partial_grouped_lines.append(row[0].value)
@@ -995,165 +748,56 @@ def main(argv):
             report.write(tabulate(grouped_lines, headers=['Wavelength','Type']) + '\n')
             report.write('\n')
 
-            # Plot individual H lines
-            if (Halpha > 0):
-                ax1.clear()
-            if (Hbeta > 0):
-                ax2.clear()
-            if (Hgamma > 0):
-                ax3.clear()
-            if (Hdelta > 0):
-                ax4.clear()
-            
-            padding = 50
-            if (Halpha > 0):
-                ax1.set_xlim(Halpha - padding, Halpha + padding)
-                ax1.set_xlabel(html_to_mathtext(HalphaLabel))
-                ax1.plot(spec_flux.spectral_axis, spec_flux.flux)
-            if (Hbeta > 0):
-                ax2.set_xlim(Hbeta - padding, Hbeta + padding)
-                ax2.set_xlabel(html_to_mathtext(HbetaLabel))
-                ax2.set_ylabel('')
-                ax2.plot(spec_flux.spectral_axis, spec_flux.flux)
-            if (Hgamma > 0):
-                ax3.set_xlim(Hgamma - padding, Hgamma + padding)
-                ax3.set_xlabel(html_to_mathtext(HgammaLabel))
-                ax3.plot(spec_flux.spectral_axis, spec_flux.flux)
-                ax3.set_ylabel('')
-            if (Hdelta > 0):
-                ax4.set_xlim(Hdelta - padding, Hdelta + padding)
-                ax4.set_xlabel(html_to_mathtext(HdeltaLabel))
-                ax4.set_ylabel('')
-                ax4.plot(spec_flux.spectral_axis, spec_flux.flux)
+            # Plot individual lines
+            for i, line in enumerate(lines):
+                axes[i].clear()
+                axes[i].set_xlim(line['centroid'] - padding, line['centroid'] + padding)
+                axes[i].set_xlabel(html_to_mathtext(line['label']))
+                axes[i].plot(spec_flux.spectral_axis, spec_flux.flux)
             
             if debug:
                 report.write('Found lines (noise region uncertainty factor 1):' + '\n')
-                report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
+                report.write(tabulate(lines_found, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
 
             # Find lines by derivating
-            lines = find_lines_derivative(spec_normalized, flux_threshold=0.95)
+            lines_found = find_lines_derivative(spec_normalized, flux_threshold=0.95)
             
             # Try identify lines
-            lines.add_column(name='match', col='          ')
-            for row in lines:
-                if (Halpha > 0 and abs(row[0].value - Halpha) < 10):
-                    row[3] = HalphaLabel
-                elif (Hbeta > 0 and abs(row[0].value - Hbeta) < 10):
-                    row[3] = HbetaLabel
-                elif (Hgamma > 0 and abs(row[0].value - Hgamma) < 10):
-                    row[3] = HgammaLabel
-                elif (Hdelta > 0 and abs(row[0].value - Hdelta) < 10):
-                    row[3] = HdeltaLabel
+            lines_found.add_column(name='match', col='          ')
+            for row in lines_found:
+                for line in lines:
+                    if abs(row[0].value - line['centroid']) < 10:
+                        row[3] = line['label']
+                        break
                 else:
                     row[3] = ''
                     
             if debug:
                 report.write('Found lines (derivative threshold 0.95):' + '\n')
-                report.write(tabulate(lines, headers=['Line center','Type','Index','Match']) + '\n')
+                report.write(tabulate(lines_found, headers=['Line center','Type','Index','Match']) + '\n')
                 report.write('\n')
 
             # Measure lines finding paddigns
-            if (Halpha > 0):
-                haCalculations = measure_line_continuum_bigger_padding(Halpha, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            else:
-                haCalculations = empty_measure_line_values()
+            line_calculations = []
+            for i, line in enumerate(lines):
+                line_calculations.append(None)
+            for i, line in enumerate(lines):
+                line_calculations[i] = measure_line_continuum_bigger_padding(line['centroid'], spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
 
-            if (Hbeta > 0):
-                hbCalculations = measure_line_continuum_bigger_padding(Hbeta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            else:
-                hbCalculations = empty_measure_line_values()
-    
-            if (Hgamma > 0):
-                hgCalculations = measure_line_continuum_bigger_padding(Hgamma, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            else:
-                hgCalculations = empty_measure_line_values()
-                
-            if (Hdelta > 0):
-                hdCalculations = measure_line_continuum_bigger_padding(Hdelta, spec_normalized, spec_flux, AngstromIncrement, HistogramStDevPercent)
-            else:
-                hdCalculations = empty_measure_line_values()
-            
-            fluxData = [haCalculations[0], hbCalculations[0], hgCalculations[0], hdCalculations[0]]
-            fwhmData = [haCalculations[1], hbCalculations[1], hgCalculations[1], hdCalculations[1]]
-            equivalentWidthData = [haCalculations[2], hbCalculations[2], hgCalculations[2], hdCalculations[2]]
-            centroidData = [haCalculations[3], hbCalculations[3], hgCalculations[3], hdCalculations[3]]
+            fluxData = [calc[0] for calc in line_calculations]
+            fwhmData = [calc[1] for calc in line_calculations]
+            equivalentWidthData = [calc[2] for calc in line_calculations]
+            centroidData = [calc[3] for calc in line_calculations]
 
             # Draw padding limits on line calculation
-            if (haCalculations[4] > 50 or haCalculations[5] > 50):
-                ax1.set_xlim(Halpha - haCalculations[4] - 10, Halpha + haCalculations[5] + 10)
-            if (hbCalculations[4] > 50 or hbCalculations[5] > 50):
-                ax2.set_xlim(Hbeta - hbCalculations[4] - 10, Hbeta + hbCalculations[5] + 10)
-            if (hgCalculations[4] > 50 or hgCalculations[5] > 50):
-                ax3.set_xlim(Hgamma - hgCalculations[4] - 10, Hgamma + hgCalculations[5] + 10)
-            if (hdCalculations[4] > 50 or hdCalculations[5] > 50):
-                ax4.set_xlim(Hdelta - hdCalculations[4] - 10, Hdelta + hdCalculations[5] + 10)
+            for i, calc in enumerate(line_calculations):
+                if calc[4] > 50 or calc[5] > 50:
+                    axes[i].set_xlim(lines[i]['centroid'] - calc[4] - 10, lines[i]['centroid'] + calc[5] + 10)
+                axes[i].axvline(x=lines[i]['centroid'] - calc[4], color='r')
+                axes[i].axvline(x=lines[i]['centroid'] + calc[5], color='r')
+                axes[i].axvline(x=lines[i]['centroid'], color='y', linestyle='dashed')
 
-            if (Halpha > 0):
-                ax1.axvline(x=Halpha-haCalculations[4], color='r')
-                ax1.axvline(x=Halpha+haCalculations[5], color='r')
-                ax1.axvline(x=Halpha, color='y', linestyle='dashed')
-
-                haValues = np.array([HalphaLabel, fluxData[0], fwhmData[0], equivalentWidthData[0], centroidData[0]])
-
-                # Calculate evolution graphs
-                HalphaEvolution.append(fluxData[0].value)
-
-            if (Hbeta > 0):
-                ax2.axvline(x=Hbeta-hbCalculations[4], color='r')
-                ax2.axvline(x=Hbeta+hbCalculations[5], color='r')
-                ax2.axvline(x=Hbeta, color='y', linestyle='dashed')
-
-                hbValues = np.array([HbetaLabel, fluxData[1], fwhmData[1], equivalentWidthData[1], centroidData[1]])
-
-                # Calculate evolution graphs
-                HbetaEvolution.append(fluxData[1].value)
-
-            if (Hgamma > 0):
-                ax3.axvline(x=Hgamma-hgCalculations[4], color='r')
-                ax3.axvline(x=Hgamma+hgCalculations[5], color='r')
-                ax3.axvline(x=Hgamma, color='y', linestyle='dashed')
-                
-                hgValues = np.array([HgammaLabel, fluxData[2], fwhmData[2], equivalentWidthData[2], centroidData[2]])
-
-                # Calculate evolution graphs
-                HgammaEvolution.append(fluxData[2].value)
-
-            if (Hdelta > 0):
-                ax4.axvline(x=Hdelta-hdCalculations[4], color='r')
-                ax4.axvline(x=Hdelta+hdCalculations[5], color='r')
-                ax4.axvline(x=Hdelta, color='y', linestyle='dashed')
-
-                hdValues = np.array([HdeltaLabel, fluxData[3], fwhmData[3], equivalentWidthData[3], centroidData[3]])
-
-                # Calculate evolution graphs
-                HdeltaEvolution.append(fluxData[3].value)
-            
-            if (Halpha == HALPHA_REF and Hbeta == HBETA_REF and Hgamma == HGAMMA_REF and Hdelta == HDELTA_REF):
-                # Only generate this graph if measuring the main H lines
-                Halpha_Hbeta.append(fluxData[0] / fluxData[1])
-                Hgamma_Hbeta.append(fluxData[2] / fluxData[1])
-                Hdelta_Hbeta.append(fluxData[3] / fluxData[1])
-
-            if (Halpha > 0):
-                HalphaFWHMEvolution.append((fwhmData[0].value / centroidData[0].value) * const.c.to('km/s').value)
-            if (Hbeta > 0):
-                HbetaFWHMEvolution.append((fwhmData[1].value / centroidData[1].value) * const.c.to('km/s').value)
-            if (Hgamma > 0):
-                HgammaFWHMEvolution.append((fwhmData[2].value / centroidData[2].value) * const.c.to('km/s').value)
-            if (Hdelta > 0):
-                HdeltaFWHMEvolution.append((fwhmData[3].value / centroidData[3].value) * const.c.to('km/s').value)
-
-            if (sortedDates[counter].isdigit()):
-                evolutionPlane.append(int(sortedDates[counter]))
-            elif (is_date(sortedDates[counter], '%Y-%m-%d')):
-                # Get number of days from maximum (first date is day 1)
-                delta = datetime.strptime(sortedDates[counter], '%Y-%m-%d') - datetime.strptime(sortedDates[0], '%Y-%m-%d')
-                evolutionPlane.append(delta.days + 1)
-            else:
-                # Order by string
-                evolutionPlane.append(sortedDates[counter])
-            
             # Plot main figure
             #plt.subplots_adjust(left=0.1, right=0.1, top=0.1, bottom=0.1)
             fig.tight_layout()
@@ -1162,96 +806,49 @@ def main(argv):
 
             # Plot lines average shape overlap with median and median symetric
             fig, ax = plt.subplots()
-            fig.set_figwidth(10)
+            fig.set_figwidth(15)
             fig.set_figheight(7)
-            maxMargin = np.max([haCalculations[4], haCalculations[5], hbCalculations[4], hbCalculations[5], hgCalculations[4], hgCalculations[5], hdCalculations[4], hdCalculations[5]])
+            maxMargin = max([calc[4] for calc in line_calculations] + [calc[5] for calc in line_calculations])
             
-            if (Halpha > 0):
-                speedMargin = 300000 * maxMargin / Halpha
-            elif (Hbeta > 0):
-                speedMargin = 300000 * maxMargin / Hbeta
-            elif (Hgamma > 0):
-                speedMargin = 300000 * maxMargin / Hgamma
-            elif (Hdelta > 0):
-                speedMargin = 300000 * maxMargin / Hdelta
+            #speedMargin = 300000 * maxMargin / lines[0]['centroid']
+            #speedMargin = 300000 * maxMargin / min([line['centroid'] for line in lines])
+            speedMargin = 0
+            for i, line in enumerate(lines):
+                _speedMargin = 300000 * maxMargin / lines[i]['centroid']
+                if (_speedMargin > speedMargin):
+                    speedMargin = _speedMargin
             ax.set_xlim(-speedMargin, speedMargin)
             
             xs = []
             ys = []
             mins = []
             maxs = []
+            lines_wavelength = []
+            lines_flux = []
+            max_lines_flux = []
 
-            if (Halpha > 0):
-                fluxHa, wavelengthHa = limit_spectra_array(Halpha - maxMargin, Halpha + maxMargin, spec_flux)
+            for i, line in enumerate(lines):
+                xs.append(None)
+                ys.append(None)
+                mins.append(None)
+                maxs.append(None)
+                lines_flux.append(None)
+                lines_wavelength.append(None)
+                max_lines_flux.append(None)
+
+            for i, line in enumerate(lines):
+                lines_flux[i], lines_wavelength[i] = limit_spectra_array(line['centroid'] - maxMargin, line['centroid'] + maxMargin, spec_flux)
                 
                 # Find the max flux value at rest frequecy, so the reference value of each line
-                maxHalpha = fluxHa[find_nearest_index(wavelengthHa.value, Halpha)].value
+                max_lines_flux[i] = lines_flux[i][find_nearest_index(lines_wavelength[i].value, line['centroid'])].value
 
-                xs.append(300000 * ((wavelengthHa.value - Halpha) / Halpha))
-                ys.append(fluxHa.value / maxHalpha)
+                xs[i] = 300000 * ((lines_wavelength[i].value - line['centroid']) / line['centroid'])
+                ys[i] = lines_flux[i].value / max_lines_flux[i]
 
-                ax.plot(xs[0], ys[0], label = html_to_mathtext(HalphaLabel))
+                ax.plot(xs[i], ys[i], label = html_to_mathtext(line['label']))
 
-                mins.append(min(xs[0]))
-                maxs.append(max(xs[0]))
-
-            else:
-                xs.append(0)
-                ys.append(0)
-
-            if (Hbeta > 0):
-                fluxHb, wavelengthHb = limit_spectra_array(Hbeta - maxMargin, Hbeta + maxMargin, spec_flux)
-
-                # Find the max flux value at rest frequecy, so the reference value of each line
-                maxHbeta = fluxHb[find_nearest_index(wavelengthHb.value, Hbeta)].value
-                
-                xs.append(300000 * ((wavelengthHb.value - Hbeta) / Hbeta))
-                ys.append(fluxHb.value / maxHbeta)
-
-                ax.plot(xs[1], ys[1], label = html_to_mathtext(HbetaLabel))
-
-                mins.append(min(xs[1]))
-                maxs.append(max(xs[1]))
-
-            else:
-                xs.append(0)
-                ys.append(0)
-
-            if (Hgamma > 0):
-                fluxHg, wavelengthHg = limit_spectra_array(Hgamma - maxMargin, Hgamma + maxMargin, spec_flux)
-
-                # Find the max flux value at rest frequecy, so the reference value of each line
-                maxHgamma = fluxHg[find_nearest_index(wavelengthHg.value, Hgamma)].value
-
-                xs.append(300000 * ((wavelengthHg.value - Hgamma) / Hgamma))
-                ys.append(fluxHg.value / maxHgamma)
-
-                ax.plot(xs[2], ys[2], label = html_to_mathtext(HgammaLabel))
-
-                mins.append(min(xs[2]))
-                maxs.append(max(xs[2]))
-
-            else:
-                xs.append(0)
-                ys.append(0)
-
-            if (Hdelta > 0):
-                fluxHd, wavelengthHd = limit_spectra_array(Hdelta - maxMargin, Hdelta + maxMargin, spec_flux)
-
-                # Find the max flux value at rest frequecy, so the reference value of each line
-                maxHdelta = fluxHd[find_nearest_index(wavelengthHd.value, Hdelta)].value
-
-                xs.append(300000 * ((wavelengthHd.value - Hdelta) / Hdelta))
-                ys.append(fluxHd.value / maxHdelta)
-
-                ax.plot(xs[3], ys[3], label = html_to_mathtext(HdeltaLabel))
-
-                mins.append(min(xs[3]))
-                maxs.append(max(xs[3]))
-
-            else:
-                xs.append(0)
-                ys.append(0)
+                mins[i] = min(xs[i])
+                maxs[i] = max(xs[i])
 
             ax.set(xlabel = f"{(u.kilometer / u.second)}", ylabel='Normalised')
             
@@ -1263,22 +860,10 @@ def main(argv):
             stdev_y_axis = []
             for index, value in enumerate(range_x_axis):
                 values_median = []
-                if (Halpha > 0):
-                    _nearest_ha = find_nearest_index(xs[0], value)
-                    if (_nearest_ha > 0 and _nearest_ha < len(xs[0]) - 1) :
-                        values_median.append(ys[0][_nearest_ha])
-                if (Hbeta > 0):
-                    _nearest_hb = find_nearest_index(xs[1], value)
-                    if (_nearest_hb > 0 and _nearest_hb < len(xs[1]) - 1) :
-                        values_median.append(ys[1][_nearest_hb])
-                if (Hgamma > 0):
-                    _nearest_hg = find_nearest_index(xs[2], value)
-                    if (_nearest_hg > 0 and _nearest_hg < len(xs[2]) - 1) :
-                        values_median.append(ys[2][_nearest_hg])
-                if (Hdelta > 0):
-                    _nearest_hd = find_nearest_index(xs[3], value)
-                    if (_nearest_hd > 0 and _nearest_hd < len(xs[3]) - 1) :
-                        values_median.append(ys[3][_nearest_hd])
+                for i, line in enumerate(lines):
+                    _nearest = find_nearest_index(xs[i], value)
+                    if (_nearest > 0 and _nearest < len(xs[i]) - 1) :
+                        values_median.append(ys[i][_nearest])
                 
                 if (len(values_median) > 1):
                     median_y_axis.append(statistics.median(values_median))
@@ -1299,261 +884,87 @@ def main(argv):
             plt.savefig(output_path + filename + '.lines_shape_overlap.png')
             plt.clf()
 
-            # Restore median line for all 4 lines and substract to the lines
+            # Restore median line for all lines and substract to the lines
             restored_median_xs = []
             restored_median_ys = []
 
-            if (Halpha > 0):
-                restored_median_xs.append(((range_x_axis / 300000) * Halpha) + Halpha)
-                restored_median_ys.append(np.array(median_y_axis) * maxHalpha)
-            else:
-                restored_median_xs.append(0)
-                restored_median_ys.append(0)
+            for i, line in enumerate(lines):
+                restored_median_xs.append(None)
+                restored_median_ys.append(None)
+            for i, line in enumerate(lines):
+                restored_median_xs[i] = ((range_x_axis / 300000) * line['centroid']) + line['centroid']
+                restored_median_ys[i] = np.array(median_y_axis) * max_lines_flux[i]
 
-            if (Hbeta > 0):
-                restored_median_xs.append(((range_x_axis / 300000) * Hbeta) + Hbeta)
-                restored_median_ys.append(np.array(median_y_axis) * maxHbeta)
-            else:
-                restored_median_xs.append(0)
-                restored_median_ys.append(0)
-
-            if (Hgamma > 0 ):
-                restored_median_xs.append(((range_x_axis / 300000) * Hgamma) + Hgamma)
-                restored_median_ys.append(np.array(median_y_axis) * maxHgamma)
-            else:
-                restored_median_xs.append(0)
-                restored_median_ys.append(0)
-
-            if (Hdelta > 0):
-                restored_median_xs.append(((range_x_axis / 300000) * Hdelta) + Hdelta)
-                restored_median_ys.append(np.array(median_y_axis) * maxHdelta)
-            else:
-                restored_median_xs.append(0)
-                restored_median_ys.append(0)
-    
             # Deblending process
-            fig, ax = plt.subplots()
+            fig = plt.figure()
             fig.set_figwidth(15)
-            fig.set_figheight(5)
-
-            columns = 0
-            if (Halpha > 0):
-                columns = columns + 1
-            if (Hbeta > 0):
-                columns = columns + 1
-            if (Hgamma > 0):
-                columns = columns + 1
-            if (Hdelta > 0):
-                columns = columns + 1
-            gs = fig.add_gridspec(1,columns)
+            columns = len(lines)
+            rows = (columns // 4) + (1 if columns % 4 != 0 else 0)
+            fig.set_figheight(5 * rows)
+            gs = fig.add_gridspec(rows, 4)  # Ajustar el tamaño de la cuadrícula para incluir las filas adicionales
             
-            columns = 0
-            haFitCalculations = empty_measure_line_values()
-            hbFitCalculations = empty_measure_line_values()
-            hgFitCalculations = empty_measure_line_values()
-            hdFitCalculations = empty_measure_line_values()
-            _ignoreDeblendingHa = False
-            _ignoreDeblendingHb = False
-            _ignoreDeblendingHg = False
-            _ignoreDeblendingHd = False
-            if (Halpha > 0):
-                ax1 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
+            axes = []
+            for i in range(columns):
+                row = i // 4
+                col = i % 4
+                axes.append(fig.add_subplot(gs[row, col]))
+            
+            fit_calculations = []
+            ignore_deblending = []
+            lines_flux_interpolated = []
+            lines_flux_deblended = []
 
-                ax1.set_xlabel(html_to_mathtext(HalphaLabel))
-                ax1.plot(wavelengthHa, fluxHa, label = 'l')
-                ax1.plot(restored_median_xs[0], restored_median_ys[0], label = 'm')
-                ax1.axvline(x=Halpha, color='m', linestyle='dashed')
+            for i, line in enumerate(lines):
+                fit_calculations.append(empty_measure_line_values())
+                ignore_deblending.append(False)
+                lines_flux_interpolated.append(None)
+                lines_flux_deblended.append(None)
+
+            for i, line in enumerate(lines):
+                axes[i].set_xlabel(html_to_mathtext(line['label']))
+                axes[i].plot(lines_wavelength[i], lines_flux[i], label = 'l')
+                axes[i].plot(restored_median_xs[i], restored_median_ys[i], label = 'm')
+                axes[i].axvline(x=line['centroid'], color='m', linestyle='dashed')
 
                 # Try fitting a gaussian model on the line
-                _spectrum = Spectrum1D(flux=fluxHa, spectral_axis=wavelengthHa)
-                _indexFlux = find_nearest_index(wavelengthHa.value, Halpha)
-                _g_init = models.Gaussian1D(amplitude=fluxHa[_indexFlux], mean=Halpha * wavelengthHa.unit, stddev=statistics.stdev(wavelengthHa.value) * wavelengthHa.unit)
+                _spectrum = Spectrum1D(flux=lines_flux[i], spectral_axis=lines_wavelength[i])
+                _indexFlux = find_nearest_index(lines_wavelength[i].value, line['centroid'])
+                _g_init = models.Gaussian1D(amplitude=lines_flux[i][_indexFlux], mean=line['centroid'] * lines_wavelength[i].unit, stddev=statistics.stdev(lines_wavelength[i].value) * lines_wavelength[i].unit)
                 _g_fit = fit_lines(_spectrum, _g_init)
-                _y_fit = _g_fit(wavelengthHa)
-                ax1.plot(wavelengthHa, _y_fit, label="f", c="y")
+                _y_fit = _g_fit(lines_wavelength[i])
+                axes[i].plot(lines_wavelength[i], _y_fit, label="f", c="y")
 
                 if (np.sum(_y_fit) != 0):
-                    _spectrum_ha_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHa)
-                    _y_continuum_interpolated = np.interp(wavelengthHa, spec.wavelength, y_continuum_fitted)
-                    _spectrum_ha_fit_norm = (_spectrum_ha_fit + _y_continuum_interpolated) / _y_continuum_interpolated
-                    haFitCalculations = measure_line_continuum_bigger_padding(Halpha, _spectrum_ha_fit_norm, _spectrum_ha_fit, AngstromIncrement, HistogramStDevPercent)
+                    _spectrum_fit = Spectrum1D(flux=_y_fit, spectral_axis=lines_wavelength[i])
+                    _y_continuum_interpolated = np.interp(lines_wavelength[i], spec.wavelength, y_continuum_fitted)
+                    _spectrum_fit_norm = (_spectrum_fit + _y_continuum_interpolated) / _y_continuum_interpolated
+                    fit_calculations[i] = measure_line_continuum_bigger_padding(line['centroid'], _spectrum_fit_norm, _spectrum_fit, AngstromIncrement, HistogramStDevPercent)
 
                     # Check if centroid calculated model is too far from reference, to discard line
-                    centroidDifference = haFitCalculations[3].value - Halpha
-                    centroidDifferenceSpeed = 300000 * (centroidDifference / Halpha)
-                    #print('Line ' + str(HalphaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
-                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(haFitCalculations[2].value) > 0):
-                        _ignoreDeblendingHa = True
+                    centroidDifference = fit_calculations[i][3].value - line['centroid']
+                    centroidDifferenceSpeed = 300000 * (centroidDifference / line['centroid'])
+                    #print('Line ' + str(line['label']) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
+                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(fit_calculations[i][2].value) > 0):
+                        ignore_deblending[i]= True
                     # Check too if the flux is high enough to be considered a line
-                    _flux = fluxHa[_indexFlux].value
-                    _mode = statistics.mode(fluxHa.value)
+                    _flux = lines_flux[i][_indexFlux].value
+                    _mode = statistics.mode(lines_flux[i].value)
                     #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
                     if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
-                        _ignoreDeblendingHa = True
+                        ignore_deblending[i]= True
                 else:
                     #Ignore line if we cannot fit a model
-                    _ignoreDeblendingHa = True
+                    ignore_deblending[i]= True
 
                 # Calculate and plot deblending process
-                if (not _ignoreDeblendingHa):
-                    fluxHa_interpolated = np.interp(wavelengthHa.value, restored_median_xs[0], restored_median_ys[0])
-                    fluxHa_deblended = (fluxHa.value - (fluxHa.value - fluxHa_interpolated)) * fluxHa.unit
-                    ax1.plot(wavelengthHa, (fluxHa.value - fluxHa_interpolated) * fluxHa.unit, label = 'l - m')
-                    ax1.plot(wavelengthHa, fluxHa_deblended, label = 'd')
+                if (not ignore_deblending[i]):
+                    lines_flux_interpolated[i] = np.interp(lines_wavelength[i].value, restored_median_xs[i], restored_median_ys[i])
+                    lines_flux_deblended[i] = (lines_flux[i].value - (lines_flux[i].value - lines_flux_interpolated[i])) * lines_flux[i].unit
+                    axes[i].plot(lines_wavelength[i], (lines_flux[i].value - lines_flux_interpolated[i]) * lines_flux[i].unit, label = 'l - m')
+                    axes[i].plot(lines_wavelength[i], lines_flux_deblended[i], label = 'd')
                 else:
-                    ax1.plot([],[], label = 'l - m')
-                    ax1.plot([],[], label = 'd')
-            
-            if (Hbeta > 0):
-                ax2 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
-
-                ax2.set_xlabel(html_to_mathtext(HbetaLabel))
-                ax2.set_ylabel('')
-                ax2.plot(wavelengthHb, fluxHb, label = 'l')
-                ax2.plot(restored_median_xs[1], restored_median_ys[1], label = 'm')
-                ax2.axvline(x=Hbeta, color='m', linestyle='dashed')
-
-                # Try fitting a gaussian model on the line
-                _spectrum = Spectrum1D(flux=fluxHb, spectral_axis=wavelengthHb)
-                _indexFlux = find_nearest_index(wavelengthHb.value, Hbeta)
-                _g_init = models.Gaussian1D(amplitude=fluxHb[_indexFlux], mean=Hbeta * wavelengthHb.unit, stddev=statistics.stdev(wavelengthHb.value) * wavelengthHb.unit)
-                _g_fit = fit_lines(_spectrum, _g_init)
-                _y_fit = _g_fit(wavelengthHb)
-                ax2.plot(wavelengthHb, _y_fit, label="f", c="y")
-
-                if (np.sum(_y_fit) != 0):
-                    _spectrum_hb_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHb)
-                    _y_continuum_interpolated = np.interp(wavelengthHb, spec.wavelength, y_continuum_fitted)
-                    _spectrum_hb_fit_norm = (_spectrum_hb_fit + _y_continuum_interpolated) / _y_continuum_interpolated
-                    hbFitCalculations = measure_line_continuum_bigger_padding(Hbeta, _spectrum_hb_fit_norm, _spectrum_hb_fit, AngstromIncrement, HistogramStDevPercent)
-
-                    # Check if centroid calculated model is too far from reference, to discard line
-                    centroidDifference = hbFitCalculations[3].value - Hbeta
-                    centroidDifferenceSpeed = 300000 * (centroidDifference / Hbeta)
-                    #print('Line ' + str(HbetaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
-                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hbFitCalculations[2].value) > 0):
-                        _ignoreDeblendingHb = True
-                    # Check too if the flux is high enough to be considered a line
-                    _flux = fluxHb[_indexFlux].value
-                    _mode = statistics.mode(fluxHb.value)
-                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
-                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
-                        _ignoreDeblendingHb = True
-                else:
-                    #Ignore line if we cannot fit a model
-                    _ignoreDeblendingHb = True
-
-                # Calculate and plot deblending process
-                if (not _ignoreDeblendingHb):
-                    fluxHb_interpolated = np.interp(wavelengthHb.value, restored_median_xs[1], restored_median_ys[1])
-                    fluxHb_deblended = (fluxHb.value - (fluxHb.value - fluxHb_interpolated)) * fluxHb.unit
-                    ax2.plot(wavelengthHb, (fluxHb.value - fluxHb_interpolated) * fluxHb.unit, label = 'l - m')
-                    ax2.plot(wavelengthHb, fluxHb_deblended, label = 'd')
-                else:
-                    ax2.plot([],[], label = 'l - m')
-                    ax2.plot([],[], label = 'd')
-            
-            if (Hgamma > 0):
-                ax3 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
-
-                ax3.set_xlabel(html_to_mathtext(HgammaLabel))
-                ax3.set_ylabel('')
-                ax3.plot(wavelengthHg, fluxHg, label = 'l')
-                ax3.plot(restored_median_xs[2], restored_median_ys[2], label = 'm')
-                ax3.axvline(x=Hgamma, color='m', linestyle='dashed')
-
-                # Try fitting a gaussian model on the line
-                _spectrum = Spectrum1D(flux=fluxHg, spectral_axis=wavelengthHg)
-                _indexFlux = find_nearest_index(wavelengthHg.value, Hgamma)
-                _g_init = models.Gaussian1D(amplitude=fluxHg[_indexFlux], mean=Hgamma * wavelengthHg.unit, stddev=statistics.stdev(wavelengthHg.value) * wavelengthHg.unit)
-                _g_fit = fit_lines(_spectrum, _g_init)
-                _y_fit = _g_fit(wavelengthHg)
-                ax3.plot(wavelengthHg, _y_fit, label="f", c="y")
-
-                if (np.sum(_y_fit) != 0):
-                    _spectrum_hg_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHg)
-                    _y_continuum_interpolated = np.interp(wavelengthHg, spec.wavelength, y_continuum_fitted)
-                    _spectrum_hg_fit_norm = (_spectrum_hg_fit + _y_continuum_interpolated) / _y_continuum_interpolated
-                    hgFitCalculations = measure_line_continuum_bigger_padding(Hgamma, _spectrum_hg_fit_norm, _spectrum_hg_fit, AngstromIncrement, HistogramStDevPercent)
-
-                    # Check if centroid calculated model is too far from reference, to discard line
-                    centroidDifference = hgFitCalculations[3].value - Hgamma
-                    centroidDifferenceSpeed = 300000 * (centroidDifference / Hgamma)
-                    #print('Line ' + str(HgammaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
-                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hgFitCalculations[2].value) > 0):
-                        _ignoreDeblendingHg = True
-                    # Check too if the flux is high enough to be considered a line
-                    _flux = fluxHg[_indexFlux].value
-                    _mode = statistics.mode(fluxHg.value)
-                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
-                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
-                        _ignoreDeblendingHg = True
-                else:
-                    #Ignore line if we cannot fit a model
-                    _ignoreDeblendingHg = True
-
-                # Calculate and plot deblending process
-                if (not _ignoreDeblendingHg):
-                    fluxHg_interpolated = np.interp(wavelengthHg.value, restored_median_xs[2], restored_median_ys[2])
-                    fluxHg_deblended = (fluxHg.value - (fluxHg.value - fluxHg_interpolated)) * fluxHg.unit
-                    ax3.plot(wavelengthHg, (fluxHg.value - fluxHg_interpolated) * fluxHg.unit, label = 'l - m')
-                    ax3.plot(wavelengthHg, fluxHg_deblended, label = 'd')
-                else:
-                    ax3.plot([],[], label = 'l - m')
-                    ax3.plot([],[], label = 'd')
-            
-            if (Hdelta > 0):
-                ax4 = fig.add_subplot(gs[0, columns])
-                columns = columns + 1
-
-                ax4.set_xlabel(html_to_mathtext(HdeltaLabel))
-                ax4.set_ylabel('')
-                ax4.plot(wavelengthHd, fluxHd, label = 'l')
-                ax4.plot(restored_median_xs[3], restored_median_ys[3], label = 'm')
-                ax4.axvline(x=Hdelta, color='m', linestyle='dashed')
-
-                # Try fitting a gaussian model on the line
-                _spectrum = Spectrum1D(flux=fluxHd, spectral_axis=wavelengthHd)
-                _indexFlux = find_nearest_index(wavelengthHd.value, Hdelta)
-                _g_init = models.Gaussian1D(amplitude=fluxHd[_indexFlux], mean=Hdelta * wavelengthHd.unit, stddev=statistics.stdev(wavelengthHd.value) * wavelengthHd.unit)
-                _g_fit = fit_lines(_spectrum, _g_init)
-                _y_fit = _g_fit(wavelengthHd)
-                ax4.plot(wavelengthHd, _y_fit, label="f", c="y")
-
-                if (np.sum(_y_fit) != 0):
-                    _spectrum_hd_fit = Spectrum1D(flux=_y_fit, spectral_axis=wavelengthHd)
-                    _y_continuum_interpolated = np.interp(wavelengthHd, spec.wavelength, y_continuum_fitted)
-                    _spectrum_hd_fit_norm = (_spectrum_hd_fit + _y_continuum_interpolated) / _y_continuum_interpolated
-                    hdFitCalculations = measure_line_continuum_bigger_padding(Hdelta, _spectrum_hd_fit_norm, _spectrum_hd_fit, AngstromIncrement, HistogramStDevPercent)
-
-                    # Check if centroid calculated model is too far from reference, to discard line
-                    centroidDifference = hdFitCalculations[3].value - Hdelta
-                    centroidDifferenceSpeed = 300000 * (centroidDifference / Hdelta)
-                    #print('Line ' + str(HdeltaLabel) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
-                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(hdFitCalculations[2].value) > 0):
-                        _ignoreDeblendingHd = True
-                    # Check too if the flux is high enough to be considered a line
-                    _flux = fluxHd[_indexFlux].value
-                    _mode = statistics.mode(fluxHd.value)
-                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
-                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
-                        _ignoreDeblendingHd = True
-                else:
-                    #Ignore line if we cannot fit a model
-                    _ignoreDeblendingHd = True
-
-                # Calculate and plot deblending process
-                if (not _ignoreDeblendingHd):
-                    fluxHd_interpolated = np.interp(wavelengthHd.value, restored_median_xs[3], restored_median_ys[3])
-                    fluxHd_deblended = (fluxHd.value - (fluxHd.value - fluxHd_interpolated)) * fluxHd.unit
-                    ax4.plot(wavelengthHd, (fluxHd.value - fluxHd_interpolated) * fluxHd.unit, label = 'l - m')
-                    ax4.plot(wavelengthHd, fluxHd_deblended, label = 'd')
-                else:
-                    ax4.plot([],[], label = 'l - m')
-                    ax4.plot([],[], label = 'd')
+                    axes[i].plot([],[], label = 'l - m')
+                    axes[i].plot([],[], label = 'd')
 
             plt.legend()
             fig.tight_layout()
@@ -1561,108 +972,34 @@ def main(argv):
             plt.clf()
 
             # Recalculate the spectra substracting the deblended lines to the original (deredden) spectra
-            if (Halpha > 0 and not _ignoreDeblendingHa):
-                fluxHa_deblended_interpolated = np.interp(spec.wavelength, wavelengthHa, fluxHa_deblended)
-                fluxHa_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHa_deblended_interpolated, meta=meta)
-
-                # Be sure we null all flux outside the lines
-                fluxHa_deblended_interpolated_spec = reset_spectra_array_except_range(Halpha - haCalculations[4], Halpha + haCalculations[5], fluxHa_deblended_interpolated_spec)
-                fluxHa_deblended_interpolated = fluxHa_deblended_interpolated_spec.flux
-
-                # Generate separate lines plots for reference
-                fig, ax = plt.subplots()
-                fig.set_figwidth(10)
-                fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHa_deblended_interpolated, label = html_to_mathtext(HalphaLabel))
-                ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
-                fig.tight_layout()
-                plt.savefig(output_path + filename + '.' + HalphaLabel.lower() + '_deblended.png')
-                plt.clf()
-            else:
-                fluxHa_deblended_interpolated = []
-            
-            if (Hbeta > 0 and not _ignoreDeblendingHb):
-                fluxHb_deblended_interpolated = np.interp(spec.wavelength, wavelengthHb, fluxHb_deblended)
-                fluxHb_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHb_deblended_interpolated, meta=meta)
-
-                # Be sure we null all flux outside the lines
-                fluxHb_deblended_interpolated_spec = reset_spectra_array_except_range(Hbeta - hbCalculations[4], Hbeta + hbCalculations[5], fluxHb_deblended_interpolated_spec)
-                fluxHb_deblended_interpolated = fluxHb_deblended_interpolated_spec.flux
-                
-                # Generate separate lines plots for reference
-                fig, ax = plt.subplots()
-                fig.set_figwidth(10)
-                fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHb_deblended_interpolated, label = html_to_mathtext(HbetaLabel))
-                ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
-                fig.tight_layout()
-                plt.savefig(output_path + filename + '.' + HbetaLabel.lower() + '_deblended.png')
-                plt.clf()
-            else:
-                fluxHb_deblended_interpolated = []
-
-            if (Hgamma > 0 and not _ignoreDeblendingHg):    
-                fluxHg_deblended_interpolated = np.interp(spec.wavelength, wavelengthHg, fluxHg_deblended)
-                fluxHg_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHg_deblended_interpolated, meta=meta)
-
-                # Be sure we null all flux outside the lines
-                fluxHg_deblended_interpolated_spec = reset_spectra_array_except_range(Hgamma - hgCalculations[4], Hgamma + hgCalculations[5], fluxHg_deblended_interpolated_spec)
-                fluxHg_deblended_interpolated = fluxHg_deblended_interpolated_spec.flux
-
-                # Generate separate lines plots for reference
-                fig, ax = plt.subplots()
-                fig.set_figwidth(10)
-                fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHg_deblended_interpolated, label = html_to_mathtext(HgammaLabel))
-                ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
-                fig.tight_layout()
-                plt.savefig(output_path + filename + '.' + HgammaLabel.lower() + '_deblended.png')
-                plt.clf()
-            else:
-                fluxHg_deblended_interpolated = []
-            
-            if (Hdelta > 0 and not _ignoreDeblendingHd):
-                fluxHd_deblended_interpolated = np.interp(spec.wavelength, wavelengthHd, fluxHd_deblended)
-                fluxHd_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=fluxHd_deblended_interpolated, meta=meta)
-
-                # Be sure we null all flux outside the lines
-                fluxHd_deblended_interpolated_spec = reset_spectra_array_except_range(Hdelta - hdCalculations[4], Hdelta + hdCalculations[5], fluxHd_deblended_interpolated_spec)
-                fluxHd_deblended_interpolated = fluxHd_deblended_interpolated_spec.flux
-
-                # Generate separate lines plots for reference
-                fig, ax = plt.subplots()
-                fig.set_figwidth(10)
-                fig.set_figheight(7)
-                ax.plot(spec.wavelength, fluxHd_deblended_interpolated, label = html_to_mathtext(HdeltaLabel))
-                ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
-                fig.tight_layout()
-                plt.savefig(output_path + filename + '.' + HdeltaLabel.lower() + '_deblended.png')
-                plt.clf()
-            else:
-                fluxHd_deblended_interpolated = []
-
             all_lines = []
-            if (Halpha > 0 and not _ignoreDeblendingHa):
-                    all_lines = fluxHa_deblended_interpolated
-            if (Hbeta > 0 and not _ignoreDeblendingHb):
-                if len(all_lines) > 0:
-                    all_lines = all_lines + fluxHb_deblended_interpolated
-                else:
-                    all_lines = fluxHb_deblended_interpolated
-            if (Hgamma > 0 and not _ignoreDeblendingHg):
-                if len(all_lines) > 0:
-                    all_lines = all_lines + fluxHg_deblended_interpolated
-                else:
-                    all_lines = fluxHg_deblended_interpolated
-            if (Hdelta > 0 and not _ignoreDeblendingHd):
-                if len(all_lines) > 0:
-                    all_lines = all_lines + fluxHd_deblended_interpolated
-                else:
-                    all_lines = fluxHd_deblended_interpolated
-            
+            for i, line in enumerate(lines):
+                if not ignore_deblending[i]:
+                    line_flux_deblended_interpolated = np.interp(spec.wavelength, lines_wavelength[i], lines_flux_deblended[i])
+                    line_flux_deblended_interpolated_spec = Spectrum1D(spectral_axis=spec.wavelength, flux=line_flux_deblended_interpolated, meta=meta)
+
+                    # Be sure we null all flux outside the lines
+                    line_flux_deblended_interpolated_spec = reset_spectra_array_except_range(line['centroid'] - line_calculations[i][4], line['centroid'] + line_calculations[i][5], line_flux_deblended_interpolated_spec)
+                    line_flux_deblended_interpolated = line_flux_deblended_interpolated_spec.flux
+
+                    # Generate separate lines plots for reference
+                    fig, ax = plt.subplots()
+                    fig.set_figwidth(15)
+                    fig.set_figheight(7)
+                    ax.plot(spec.wavelength, line_flux_deblended_interpolated, label = html_to_mathtext(line['label']))
+                    ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
+                    fig.tight_layout()
+                    plt.savefig(output_path + filename + '.' + html.unescape(line['label']).lower() + '_deblended.png')
+                    plt.clf()
+
+                    if len(all_lines) > 0:
+                        all_lines = all_lines + line_flux_deblended_interpolated
+                    else:
+                        all_lines = line_flux_deblended_interpolated
+
             if (len(all_lines) > 0):
                 fig, ax = plt.subplots()
-                fig.set_figwidth(10)
+                fig.set_figwidth(15)
                 fig.set_figheight(7)
                 ax.plot(spec.wavelength, all_lines, label = 'All lines')
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
@@ -1672,7 +1009,7 @@ def main(argv):
 
                 # Generate another plot to compare the original deredden spectrum with the one without lines
                 fig, ax = plt.subplots()
-                fig.set_figwidth(10)
+                fig.set_figwidth(15)
                 fig.set_figheight(7)
                 ax.plot(spec.wavelength, spec.flux, label = 'Original', color='y', linestyle='dashed')
                 ax.plot(spec.wavelength, spec.flux - all_lines, label = 'Processed', color='c', linestyle='dashed')
@@ -1688,107 +1025,38 @@ def main(argv):
                 np.savetxt(output_path + '/processed/' + filename, np.column_stack((spec.wavelength.value, spec.flux.value)), fmt=['%.4f','%.6e'], delimiter=datSeparator)
 
             # Calculate values of deblended lines
-            haDeblendedCalculations = empty_measure_line_values()
-            hbDeblendedCalculations = empty_measure_line_values()
-            hgDeblendedCalculations = empty_measure_line_values()
-            hdDeblendedCalculations = empty_measure_line_values()
-            if (Halpha > 0 and not _ignoreDeblendingHa):
-                _spectrum_ha_deblended = Spectrum1D(spectral_axis=wavelengthHa, flux=fluxHa_deblended, meta=meta)
-                _y_continuum_interpolated = np.interp(wavelengthHa, spec.wavelength, y_continuum_fitted)
-                _spectrum_ha_deblended_norm = (_spectrum_ha_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
-                haDeblendedCalculations = measure_line_continuum_bigger_padding(Halpha, _spectrum_ha_deblended_norm, _spectrum_ha_deblended, AngstromIncrement, HistogramStDevPercent)
-                haFluxDataDeblended = [haDeblendedCalculations[0]]
-
-            if (Hbeta > 0 and not _ignoreDeblendingHb):    
-                _spectrum_hb_deblended = Spectrum1D(spectral_axis=wavelengthHb, flux=fluxHb_deblended, meta=meta)
-                _y_continuum_interpolated = np.interp(wavelengthHb, spec.wavelength, y_continuum_fitted)
-                _spectrum_hb_deblended_norm = (_spectrum_hb_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
-                hbDeblendedCalculations = measure_line_continuum_bigger_padding(Hbeta, _spectrum_hb_deblended_norm, _spectrum_hb_deblended, AngstromIncrement, HistogramStDevPercent)
-                hbFluxDataDeblended = [hbDeblendedCalculations[0]]
-
-            if (Hgamma > 0 and not _ignoreDeblendingHg):
-                _spectrum_hg_deblended = Spectrum1D(spectral_axis=wavelengthHg, flux=fluxHg_deblended, meta=meta)
-                _y_continuum_interpolated = np.interp(wavelengthHg, spec.wavelength, y_continuum_fitted)
-                _spectrum_hg_deblended_norm = (_spectrum_hg_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
-                hgDeblendedCalculations = measure_line_continuum_bigger_padding(Hgamma, _spectrum_hg_deblended_norm, _spectrum_hg_deblended, AngstromIncrement, HistogramStDevPercent)
-                hgFluxDataDeblended = [hgDeblendedCalculations[0]]
-
-            if (Hdelta > 0 and not _ignoreDeblendingHd):
-                _spectrum_hd_deblended = Spectrum1D(spectral_axis=wavelengthHd, flux=fluxHd_deblended, meta=meta)
-                _y_continuum_interpolated = np.interp(wavelengthHd, spec.wavelength, y_continuum_fitted)
-                _spectrum_hd_deblended_norm = (_spectrum_hd_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
-                hdDeblendedCalculations = measure_line_continuum_bigger_padding(Hdelta, _spectrum_hd_deblended_norm, _spectrum_hd_deblended, AngstromIncrement, HistogramStDevPercent)
-                hdFluxDataDeblended = [hdDeblendedCalculations[0]]
+            deblended_calculations = []
+            for i, line in enumerate(lines):
+                if not ignore_deblending[i]:
+                    _spectrum_deblended = Spectrum1D(spectral_axis=lines_wavelength[i], flux=lines_flux_deblended[i], meta=meta)
+                    _y_continuum_interpolated = np.interp(lines_wavelength[i], spec.wavelength, y_continuum_fitted)
+                    _spectrum_deblended_norm = (_spectrum_deblended + _y_continuum_interpolated) / _y_continuum_interpolated
+                    deblended_calculations.append(measure_line_continuum_bigger_padding(line['centroid'], _spectrum_deblended_norm, _spectrum_deblended, AngstromIncrement, HistogramStDevPercent))
+                else:
+                    deblended_calculations.append(empty_measure_line_values())
 
             # Add deblended values to report
-            if (Halpha > 0):
-                haValues = np.append(haValues, [haDeblendedCalculations[0].value, haDeblendedCalculations[1].value, haDeblendedCalculations[2].value, haDeblendedCalculations[3].value])
-            if (Hbeta > 0):
-                hbValues = np.append(hbValues, [hbDeblendedCalculations[0].value, hbDeblendedCalculations[1].value, hbDeblendedCalculations[2].value, hbDeblendedCalculations[3].value])
-            if (Hgamma > 0):
-                hgValues = np.append(hgValues, [hgDeblendedCalculations[0].value, hgDeblendedCalculations[1].value, hgDeblendedCalculations[2].value, hgDeblendedCalculations[3].value])
-            if (Hdelta > 0):
-                hdValues = np.append(hdValues, [hdDeblendedCalculations[0].value, hdDeblendedCalculations[1].value, hdDeblendedCalculations[2].value, hdDeblendedCalculations[3].value])
-
-            # Add model fit values to report
-            if (Halpha > 0):
-                haValues = np.append(haValues, [haFitCalculations[0].value, haFitCalculations[1].value, haFitCalculations[2].value, haFitCalculations[3].value])
-            if (Hbeta > 0):
-                hbValues = np.append(hbValues, [hbFitCalculations[0].value, hbFitCalculations[1].value, hbFitCalculations[2].value, hbFitCalculations[3].value])
-            if (Hgamma > 0):
-                hgValues = np.append(hgValues, [hgFitCalculations[0].value, hgFitCalculations[1].value, hgFitCalculations[2].value, hgFitCalculations[3].value])
-            if (Hdelta > 0):
-                hdValues = np.append(hdValues, [hdFitCalculations[0].value, hdFitCalculations[1].value, hdFitCalculations[2].value, hdFitCalculations[3].value])
-            
-            #lines = np.array([])
-            #if (Halpha > 0):
-            #    lines = np.append(lines, [haValues], 0)
-            #if (Hbeta > 0):
-            #    lines = np.append(lines, [hbValues], 0)
-            #if (Hgamma > 0):
-            #    lines = np.append(lines, [hgValues], 0)
-            #if (Hdelta > 0):
-            #    lines = np.append(lines, [hdValues], 0)
-            #lines = np.array([haValues, hbValues, hgValues, hdValues])
-            # TODO: Make this dynamic for any line being zero
-            if (Halpha > 0):
-                lines = np.array([haValues, hbValues, hgValues, hdValues])
-            else:
-                lines = np.array([hbValues, hgValues, hdValues])
-            #print(lines)
+            for i, line in enumerate(lines):
+                line_values = np.array([line['label'], fluxData[i], fwhmData[i], equivalentWidthData[i], centroidData[i]])
+                line_values = np.append(line_values, [deblended_calculations[i][0].value, deblended_calculations[i][1].value, deblended_calculations[i][2].value, deblended_calculations[i][3].value])
+                line_values = np.append(line_values, [fit_calculations[i][0].value, fit_calculations[i][1].value, fit_calculations[i][2].value, fit_calculations[i][3].value])
+                lines[i]['values'] = line_values
 
             # Write report
             report.write('Lines analisys' + '\n')
-            report.write(tabulate(lines, headers=['Line', 'Flux', 'FWHM', 'Equivalent width', 'Centroid', 'Flux deblended', 'FWHM deblended', 'Equivalent width deblended', 'Centroid deblended', 'Flux model', 'FWHM model', 'Equivalent width model', 'Centroid model']) + '\n')
+            report.write(tabulate([line['values'] for line in lines], headers=['Line', 'Flux', 'FWHM', 'Equivalent width', 'Centroid', 'Flux deblended', 'FWHM deblended', 'Equivalent width deblended', 'Centroid deblended', 'Flux model', 'FWHM model', 'Equivalent width model', 'Centroid model']) + '\n')
             
-            if (Halpha > 0):
+            if len(lines) > 0:
                 report.write('* Units: ' + str(fluxData[0].unit))
-            elif (Hbeta > 0):
-                report.write('* Units: ' + str(fluxData[1].unit))
-            elif (Hgamma > 0):
-                report.write('* Units: ' + str(fluxData[2].unit))
-            elif (Hdelta > 0):
-                report.write('* Units: ' + str(fluxData[3].unit))
 
             report.write('\n')
 
             # Write spreadsheet
-            if (Halpha > 0 and not _ignoreDeblendingHa):
-                csv_report.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';' + str(haFitCalculations[0].value) + ';' + str(haFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
-            elif (Halpha > 0):
-                csv_report.write(str(centroidData[0].value) + ';' + str(fluxData[0].value) + ';;;' + str(equivalentWidthData[0].value) + ';' + str(fwhmData[0].value) + ';')
-            if (Hbeta > 0 and not _ignoreDeblendingHb):
-                csv_report.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';' + str(hbFitCalculations[0].value) + ';' + str(hbFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
-            elif (Hbeta > 0):
-                csv_report.write(str(centroidData[1].value) + ';' + str(fluxData[1].value) + ';;;' + str(equivalentWidthData[1].value) + ';' + str(fwhmData[1].value) + ';')
-            if (Hgamma > 0 and not _ignoreDeblendingHg):
-                csv_report.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';' + str(hgFitCalculations[0].value) + ';' + str(hgFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
-            elif (Hgamma > 0):
-                csv_report.write(str(centroidData[2].value) + ';' + str(fluxData[2].value) + ';;;' + str(equivalentWidthData[2].value) + ';' + str(fwhmData[2].value) + ';')
-            if (Hdelta > 0 and not _ignoreDeblendingHd):
-                csv_report.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';' + str(hdFitCalculations[0].value) + ';' + str(hdFluxDataDeblended[0].value) + ';' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
-            elif (Hdelta > 0):
-                csv_report.write(str(centroidData[3].value) + ';' + str(fluxData[3].value) + ';;;' + str(equivalentWidthData[3].value) + ';' + str(fwhmData[3].value) + ';')
+            for i, line in enumerate(lines):
+                if not ignore_deblending[i]:
+                    csv_report.write(str(centroidData[i].value) + ';' + str(fluxData[i].value) + ';' + str(fit_calculations[i][0].value) + ';' + str(deblended_calculations[i][0].value) + ';' + str(equivalentWidthData[i].value) + ';' + str(fwhmData[i].value) + ';')
+                else:
+                    csv_report.write(str(centroidData[i].value) + ';' + str(fluxData[i].value) + ';;;' + str(equivalentWidthData[i].value) + ';' + str(fwhmData[i].value) + ';')
             csv_report.write('\n')
 
             # Close report
@@ -1808,75 +1076,6 @@ def main(argv):
             
             if (onlyOne):
                 break # Just as test to only process the first spectrum of the folder
-            
-        if (counter > 1):
-            # Only generate evolution graphs if more than one spectra analysed
-            fig, ax = plt.subplots()
-            fig.set_figwidth(10)
-            fig.set_figheight(7)
-            
-            if (Halpha > 0):
-                ax.plot(evolutionPlane, HalphaEvolution, label = html_to_mathtext(HalphaLabel))
-            if (Hdelta > 0):
-                ax.plot(evolutionPlane, HbetaEvolution, label = html_to_mathtext(HbetaLabel))
-            if (Hgamma > 0):
-                ax.plot(evolutionPlane, HgammaEvolution, label = html_to_mathtext(HgammaLabel))
-            if (Hdelta > 0):
-                ax.plot(evolutionPlane, HdeltaEvolution, label = html_to_mathtext(HdeltaLabel))
-
-            ax.set(xlabel = EvolutionLabel, ylabel = f"Flux ({(u.erg / u.Angstrom / u.s / u.cm / u.cm).to_string('latex_inline')})")
-            ax.set_yscale('log')
-            if (evolutionPlaneLog):
-                ax.set_xscale('log')
-            else:
-                fig.autofmt_xdate()
-            plt.legend()
-            fig.tight_layout()
-            plt.savefig(output_path + 'lines_flux_evolution.png')
-            plt.clf()
-
-            if (Halpha == HALPHA_REF and Hbeta == HBETA_REF and Hgamma == HGAMMA_REF and Hdelta == HDELTA_REF):
-                # Only generate this graph if measuring the default H lines
-                fig, ax = plt.subplots()
-                fig.set_figwidth(10)
-                fig.set_figheight(7)
-                ax.plot(evolutionPlane, Halpha_Hbeta, label = html_to_mathtext(HalphaLabel) + '/' + html_to_mathtext(HbetaLabel))
-                ax.plot(evolutionPlane, Hgamma_Hbeta, label = html_to_mathtext(HgammaLabel) + '/' + html_to_mathtext(HbetaLabel))
-                ax.plot(evolutionPlane, Hdelta_Hbeta, label = html_to_mathtext(HdeltaLabel) + '/' + html_to_mathtext(HbetaLabel))
-                ax.set(xlabel = EvolutionLabel, ylabel = 'Line ratio')
-                ax.set_yscale('log')
-                if (evolutionPlaneLog):
-                    ax.set_xscale('log')
-                else:
-                    fig.autofmt_xdate()
-                plt.legend()
-                fig.tight_layout()
-                plt.savefig(output_path + 'lines_ratio_evolution.png')
-                plt.clf()
-
-            fig, ax = plt.subplots()
-            fig.set_figwidth(10)
-            fig.set_figheight(7)
-
-            if (Halpha > 0):
-                ax.plot(evolutionPlane, HalphaFWHMEvolution, label = html_to_mathtext(HalphaLabel))
-            if (Hbeta > 0):
-                ax.plot(evolutionPlane, HbetaFWHMEvolution, label = html_to_mathtext(HbetaLabel))
-            if (Hgamma > 0):
-                ax.plot(evolutionPlane, HgammaFWHMEvolution, label = html_to_mathtext(HgammaLabel))
-            if (Hdelta > 0):
-                ax.plot(evolutionPlane, HdeltaFWHMEvolution, label = html_to_mathtext(HdeltaLabel))
-
-            ax.set(xlabel = EvolutionLabel, ylabel = f"FWHM ({(u.kilometer / u.second)})")
-            ax.set_yscale('log')
-            if (evolutionPlaneLog):
-                ax.set_xscale('log')
-            else:
-                fig.autofmt_xdate()
-            plt.legend()
-            fig.tight_layout()
-            plt.savefig(output_path + 'lines_fwhm_evolution.png')
-            plt.clf()
 
         csv_report.close()
 
