@@ -752,9 +752,12 @@ def main(argv):
             # Plot individual lines
             for i, line in enumerate(lines):
                 axes[i].clear()
-                axes[i].set_xlim(line['centroid'] - padding, line['centroid'] + padding)
+                #axes[i].set_xlim(line['centroid'] - padding, line['centroid'] + padding)
+                filtered_indices = (spec_flux.spectral_axis.value >= line['centroid'] - padding) & (spec_flux.spectral_axis.value <= line['centroid'] + padding)
+                filtered_wavelength = spec_flux.spectral_axis[filtered_indices]
+                filtered_flux = spec_flux.flux[filtered_indices]
                 axes[i].set_xlabel(html_to_mathtext(line['label']))
-                axes[i].plot(spec_flux.spectral_axis, spec_flux.flux)
+                axes[i].plot(filtered_wavelength, filtered_flux)
             
             if debug:
                 report.write('Found lines (noise region uncertainty factor 1):' + '\n')
@@ -846,15 +849,45 @@ def main(argv):
                 xs[i] = 300000 * ((lines_wavelength[i].value - line['centroid']) / line['centroid'])
                 ys[i] = lines_flux[i].value / max_lines_flux[i]
 
-                ax.plot(xs[i], ys[i], label = html_to_mathtext(line['label']))
-
                 mins[i] = min(xs[i])
                 maxs[i] = max(xs[i])
 
-            ax.set(xlabel = f"{(u.kilometer / u.second)}", ylabel='Normalised')
             
             min_x = min(mins)
             max_x = max(maxs)
+
+            # Try discard not fit lines from median
+            ignore_deblending = []
+            fit_calculations = []
+            for i, line in enumerate(lines):
+                ignore_deblending.append(False)
+                fit_calculations.append(empty_measure_line_values())
+            for i, line in enumerate(lines):
+                # Try fitting a gaussian model on the line
+                _spectrum = Spectrum1D(flux=lines_flux[i], spectral_axis=lines_wavelength[i])
+                _indexFlux = find_nearest_index(lines_wavelength[i].value, line['centroid'])
+                _g_init = models.Gaussian1D(amplitude=lines_flux[i][_indexFlux], mean=line['centroid'] * lines_wavelength[i].unit, stddev=statistics.stdev(lines_wavelength[i].value) * lines_wavelength[i].unit)
+                _g_fit = fit_lines(_spectrum, _g_init)
+                _y_fit = _g_fit(lines_wavelength[i])
+
+                if (np.sum(_y_fit) != 0):
+                    _spectrum_fit = Spectrum1D(flux=_y_fit, spectral_axis=lines_wavelength[i])
+                    _y_continuum_interpolated = np.interp(lines_wavelength[i], spec.wavelength, y_continuum_fitted)
+                    _spectrum_fit_norm = (_spectrum_fit + _y_continuum_interpolated) / _y_continuum_interpolated
+                    fit_calculations[i] = measure_line_continuum_bigger_padding(line['centroid'], _spectrum_fit_norm, _spectrum_fit, AngstromIncrement, HistogramStDevPercent)
+
+                    # Check if centroid calculated model is too far from reference, to discard line
+                    centroidDifference = fit_calculations[i][3].value - line['centroid']
+                    centroidDifferenceSpeed = 300000 * (centroidDifference / line['centroid'])
+                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(fit_calculations[i][2].value) > 0):
+                        ignore_deblending[i]= True
+                else:
+                    ignore_deblending[i]= True
+
+            for i, line in enumerate(lines):
+                if not ignore_deblending[i]:
+                    ax.plot(xs[i], ys[i], label = html_to_mathtext(line['label']))
+            ax.set(xlabel = f"{(u.kilometer / u.second)}", ylabel='Normalised')
 
             range_x_axis = np.arange(min_x, max_x, 50.0)
             median_y_axis = []
@@ -862,9 +895,10 @@ def main(argv):
             for index, value in enumerate(range_x_axis):
                 values_median = []
                 for i, line in enumerate(lines):
-                    _nearest = find_nearest_index(xs[i], value)
-                    if (_nearest > 0 and _nearest < len(xs[i]) - 1) :
-                        values_median.append(ys[i][_nearest])
+                    if not ignore_deblending[i]:
+                        _nearest = find_nearest_index(xs[i], value)
+                        if (_nearest > 0 and _nearest < len(xs[i]) - 1) :
+                            values_median.append(ys[i][_nearest])
                 
                 if (len(values_median) > 1):
                     median_y_axis.append(statistics.median(values_median))
@@ -911,62 +945,24 @@ def main(argv):
                 col = i % figureColumns
                 axes.append(fig.add_subplot(gs[row, col]))
             
-            fit_calculations = []
-            ignore_deblending = []
             lines_flux_interpolated = []
             lines_flux_deblended = []
 
             for i, line in enumerate(lines):
-                fit_calculations.append(empty_measure_line_values())
-                ignore_deblending.append(False)
                 lines_flux_interpolated.append(None)
                 lines_flux_deblended.append(None)
 
             for i, line in enumerate(lines):
                 axes[i].set_xlabel(html_to_mathtext(line['label']))
                 axes[i].plot(lines_wavelength[i], lines_flux[i], label = 'l')
-                axes[i].plot(restored_median_xs[i], restored_median_ys[i], label = 'm')
-                axes[i].axvline(x=line['centroid'], color='m', linestyle='dashed')
 
-                # Try fitting a gaussian model on the line
-                _spectrum = Spectrum1D(flux=lines_flux[i], spectral_axis=lines_wavelength[i])
-                _indexFlux = find_nearest_index(lines_wavelength[i].value, line['centroid'])
-                _g_init = models.Gaussian1D(amplitude=lines_flux[i][_indexFlux], mean=line['centroid'] * lines_wavelength[i].unit, stddev=statistics.stdev(lines_wavelength[i].value) * lines_wavelength[i].unit)
-                _g_fit = fit_lines(_spectrum, _g_init)
-                _y_fit = _g_fit(lines_wavelength[i])
-                axes[i].plot(lines_wavelength[i], _y_fit, label="f", c="y")
-
-                if (np.sum(_y_fit) != 0):
-                    _spectrum_fit = Spectrum1D(flux=_y_fit, spectral_axis=lines_wavelength[i])
-                    _y_continuum_interpolated = np.interp(lines_wavelength[i], spec.wavelength, y_continuum_fitted)
-                    _spectrum_fit_norm = (_spectrum_fit + _y_continuum_interpolated) / _y_continuum_interpolated
-                    fit_calculations[i] = measure_line_continuum_bigger_padding(line['centroid'], _spectrum_fit_norm, _spectrum_fit, AngstromIncrement, HistogramStDevPercent)
-
-                    # Check if centroid calculated model is too far from reference, to discard line
-                    centroidDifference = fit_calculations[i][3].value - line['centroid']
-                    centroidDifferenceSpeed = 300000 * (centroidDifference / line['centroid'])
-                    #print('Line ' + str(line['label']) + ' difference is ' + str(centroidDifference) + ' Angstrom or ' + str(centroidDifferenceSpeed) + ' km/s')
-                    if (math.fabs(centroidDifferenceSpeed) > CentroidDifferenceInSpeed and math.fabs(fit_calculations[i][2].value) > 0):
-                        ignore_deblending[i]= True
-                    # Check too if the flux is high enough to be considered a line
-                    _flux = lines_flux[i][_indexFlux].value
-                    _mode = statistics.mode(lines_flux[i].value)
-                    #print(_flux, _mode, math.fabs(_mode * (1.0 + HistogramStDevPercent)))
-                    if (_flux < math.fabs(_mode * (1.0 + HistogramStDevPercent))):
-                        ignore_deblending[i]= True
-                else:
-                    #Ignore line if we cannot fit a model
-                    ignore_deblending[i]= True
-
-                # Calculate and plot deblending process
                 if (not ignore_deblending[i]):
+                    axes[i].plot(restored_median_xs[i], restored_median_ys[i], label = 'm')
+                    axes[i].axvline(x=line['centroid'], color='m', linestyle='dashed')
                     lines_flux_interpolated[i] = np.interp(lines_wavelength[i].value, restored_median_xs[i], restored_median_ys[i])
                     lines_flux_deblended[i] = (lines_flux[i].value - (lines_flux[i].value - lines_flux_interpolated[i])) * lines_flux[i].unit
                     axes[i].plot(lines_wavelength[i], (lines_flux[i].value - lines_flux_interpolated[i]) * lines_flux[i].unit, label = 'l - m')
                     axes[i].plot(lines_wavelength[i], lines_flux_deblended[i], label = 'd')
-                else:
-                    axes[i].plot([],[], label = 'l - m')
-                    axes[i].plot([],[], label = 'd')
                     
                 axes[i].legend()
 
@@ -1009,6 +1005,16 @@ def main(argv):
                 ax.set(xlabel = 'Wavelenght', ylabel = "Flux")
                 fig.tight_layout()
                 plt.savefig(output_path + filename + '.all_deblended_lines.png')
+                plt.clf()
+
+                # Generate plot without lines
+                fig, ax = plt.subplots()
+                fig.set_figwidth(15)
+                fig.set_figheight(7)
+                ax.plot(spec.wavelength, spec.flux - all_lines, label = 'Processed')
+                ax.set(xlabel = 'Wavelenght', ylabel = "Processed")
+                fig.tight_layout()
+                plt.savefig(output_path + filename + '.processed.png')
                 plt.clf()
 
                 # Generate another plot to compare the original deredden spectrum with the one without lines
@@ -1068,6 +1074,8 @@ def main(argv):
 
             # Write the PDF report
             html_report.write(f"<img src='./{filename + '.png'}'>\n")
+            html_report.write(f"<br />\n");
+            html_report.write(f"<img src='./{filename+ '.processed.png'}'>\n")
             html_report.write(f"<br />\n");
             html_report.write(f"<img src='./{filename + '.lines_deblending.png'}'>\n")
             html_report.write(f"<br />\n");
