@@ -425,7 +425,7 @@ def main(argv):
                 report.write('\n')
 
             fig = plt.figure()
-            figureColumns = 4
+            figureColumns = 2
             fig.set_figwidth(15)
             columns = len(lines)
             rows = (columns // figureColumns) + (1 if columns % figureColumns != 0 else 0)
@@ -958,12 +958,11 @@ def main(argv):
 
                 if (not ignore_deblending[i]):
                     axes[i].plot(restored_median_xs[i], restored_median_ys[i], label = 'm')
-                    axes[i].axvline(x=line['centroid'], color='m', linestyle='dashed')
                     lines_flux_interpolated[i] = np.interp(lines_wavelength[i].value, restored_median_xs[i], restored_median_ys[i])
                     lines_flux_deblended[i] = (lines_flux[i].value - (lines_flux[i].value - lines_flux_interpolated[i])) * lines_flux[i].unit
                     axes[i].plot(lines_wavelength[i], (lines_flux[i].value - lines_flux_interpolated[i]) * lines_flux[i].unit, label = 'l - m')
                     axes[i].plot(lines_wavelength[i], lines_flux_deblended[i], label = 'd')
-                    
+                axes[i].axvline(x=line['centroid'], color='m', linestyle='dashed')
                 axes[i].legend()
 
             plt.legend()
